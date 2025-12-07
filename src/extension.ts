@@ -8,7 +8,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { logger } from './utils/logger';
-import { readJson } from './utils/file-operations';
+import { readJson, pathExists } from './utils/file-operations';
 import { detectRole, isAdgProject, getRoleDisplayInfo, canDelegate, isWorker } from './core/role-detector';
 import { TaskManager, findTasksFile } from './core/task-manager';
 import { 
@@ -114,6 +114,17 @@ async function initializeRoleBasedFeatures(context: vscode.ExtensionContext): Pr
     const workerConfig = readJson<WorkerConfig>(workerConfigPath);
     
     if (workerConfig && workerConfig.paths.tasksFile) {
+      // Verify tasks file actually exists before proceeding
+      if (!pathExists(workerConfig.paths.tasksFile)) {
+        logger.error('Worker tasks file does not exist', { 
+          tasksFile: workerConfig.paths.tasksFile 
+        });
+        vscode.window.showErrorMessage(
+          `🥚 Worker error: Tasks file not found at ${workerConfig.paths.tasksFile}`
+        );
+        return;
+      }
+
       const taskManager = new TaskManager(workerConfig.paths.tasksFile);
       
       // For worker lifecycle, we need the management dir (parent of tasks file)
