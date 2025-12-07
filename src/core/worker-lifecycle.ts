@@ -184,6 +184,10 @@ export class WorkerLifecycleManager {
 
     // Get tasks file path from task manager (correct dynamic path)
     const tasksFilePath = this.taskManager.getFilePath();
+    
+    // Output goes to shared project output folder, not worker-specific
+    const projectRoot = path.dirname(path.dirname(tasksFilePath)); // .adg-parallels/
+    const sharedOutputDir = path.join(projectRoot, 'output');
 
     // Create worker config
     const workerConfig: WorkerConfig = {
@@ -193,7 +197,7 @@ export class WorkerLifecycleManager {
       paths: {
         tasksFile: tasksFilePath,
         attachments: path.join(workerDir, 'attachments'),
-        outputDir: path.join(workerDir, 'output'),
+        outputDir: sharedOutputDir,  // Shared output folder for all workers
         workerRoot: workerDir,
       },
       taskFilter: {
