@@ -9,65 +9,68 @@
 
 ---
 
-## 📍 Phase 0: Preparation (Current)
+## 📍 Phase 0: Preparation (DONE ✅)
 
 ### 0.1 Documentation and Planning
 - ✅ Project vision (PROJECT_VISION.md)
 - ✅ Roadmap (PROJECT_ROADMAP.md)
-- ✅ Corporate Statute (corporate-statute.ts)
-- ⬜ Detailed technical specification
-- ⬜ Internal API definition
-- ⬜ Adapter format specification
+- ✅ Corporate Statute (corporate-statute.ts + CORPORATE_STATUTE.md)
+- ⬜ Detailed technical specification (deferred to Phase 8)
+- ✅ Internal API definition (types/index.ts)
+- ✅ Adapter format specification (TaskAdapter interface)
 
 ### 0.2 Project Scaffold
-- ⬜ VS Code Extension initialization
-- ⬜ TypeScript configuration
-- ⬜ ESLint + Prettier
-- ⬜ src/ directory structure
-- ⬜ package.json with commands and contribution points
+- ✅ VS Code Extension initialization
+- ✅ TypeScript configuration (tsconfig.json)
+- ⬜ ESLint + Prettier (deferred - not critical)
+- ✅ src/ directory structure
+- ✅ package.json with commands and contribution points
 
 ---
 
-## 📍 Phase 1: MVP - Core Functionality
+## 📍 Phase 1: MVP - Core Functionality (Current 🟨)
 
 **Goal**: Working prototype with one hierarchy level (Manager → Workers)
 
 ### 1.1 Core - Role Detection
-- ⬜ `role-detector.ts` - detecting CEO/Manager/Worker
-- ⬜ Checking for `.adg-parallels/management/` and `/worker/` directories
-- ⬜ Unit tests
+- ✅ `role-detector.ts` - detecting CEO/Manager/Worker/TeamLead
+- ✅ Checking for `.adg-parallels/management/` and `/worker/` directories
+- ⬜ Unit tests (deferred)
 
 ### 1.2 Project Provisioning
-- ⬜ Command: `ADG: Provision New Project`
-- ⬜ Dialog: project name, worker count
-- ⬜ Creating directory structure
-- ⬜ Generating `project_*_adg-tasks.json`
-- ⬜ Generating `hierarchy-config.json`
-- ⬜ Copying instructions to workers (`.github/copilot-instructions.md`)
-- ⬜ Generating prompts (start/continue)
+- ✅ Command: `ADG: Provision New Project`
+- ✅ Dialog: project name, worker count, task type
+- ✅ Creating directory structure
+- ✅ Generating `project_*_adg-tasks.json`
+- ✅ Generating `hierarchy-config.json`
+- 🟨 Copying instructions to workers - PARTIAL (needs `.github/copilot-instructions.md`)
+- 🟨 Generating prompts (start/continue) - PARTIAL (needs worker-start-prompt.md)
 
 ### 1.3 Task Manager
-- ⬜ `task-manager.ts` - CRUD on tasks
-- ⬜ Atomic updates (lock file or per-task files)
-- ⬜ Finding first `pending` task
-- ⬜ Status updates with timestamps
-- ⬜ Race condition handling (multiple workers)
+- ✅ `task-manager.ts` - CRUD on tasks
+- ✅ Atomic updates (lock file)
+- ✅ Finding first `pending` task
+- ✅ Status updates with timestamps
+- ✅ Race condition handling (file locking)
 
 ### 1.4 Worker Lifecycle
-- ⬜ Automatic Copilot launch on start (if worker)
-- ⬜ "Copilot idle" detection (finished responding)
-- ⬜ Automatic resume with continue-prompt
-- ⬜ `worker-all-task-disposed.md` detection
-- ⬜ Window closing after disposed
+- ⬜ Automatic Copilot launch on start (if worker) - BLOCKED (needs VS Code Chat API research)
+- ⬜ "Copilot idle" detection (finished responding) - BLOCKED
+- ⬜ Automatic resume with continue-prompt - BLOCKED
+- ⬜ `worker-all-task-disposed.md` detection - TODO
+- ⬜ Window closing after disposed - TODO
+- ✅ Heartbeat updates (every 30s)
+- ✅ Health monitoring (every 15s)
+- ✅ Worker provisioning and spawning
 
 ### 1.5 Worker Launching
-- ⬜ Command: `ADG: Start Workers`
-- ⬜ Opening N new VS Code windows
-- ⬜ Each window opens `jobs/worker_N/` folder
+- ✅ Command: `ADG: Start Workers`
+- ✅ Opening N new VS Code windows
+- ✅ Each window opens `workers/worker_{id}/` folder
 
 ### 1.6 Status Bar
-- ⬜ Showing current role (CEO/Manager/Worker)
-- ⬜ Counter: X/Y tasks completed
+- ✅ Showing current role (CEO/Manager/Worker) with emoji
+- 🟨 Counter: X/Y tasks completed - needs async implementation
 
 ---
 
@@ -284,13 +287,13 @@
 
 | Phase | Estimated Time | Status |
 |-------|----------------|--------|
-| Phase 0 | 1-2 days | 🟨 In progress |
-| Phase 1 | 1-2 weeks | ⬜ |
+| Phase 0 | 1-2 days | ✅ Done |
+| Phase 1 | 1-2 weeks | 🟨 ~70% done (blocked on Copilot automation) |
 | Phase 2 | 1 week | ⬜ |
 | Phase 3 | 1 week | ⬜ |
 | Phase 4 | 3-4 days | ⬜ |
 | Phase 5 | 1 week | ⬜ |
-| Phase 6 | 1 week | ⬜ |
+| Phase 6 | 1 week | ⬜ (heartbeat core done) |
 | Phase 7 | 1-2 weeks | ⬜ |
 | Phase 8 | 1 week | ⬜ |
 
@@ -298,5 +301,22 @@
 
 ---
 
-*Last updated: December 7, 2025*
-*Version: 0.2 (with Adapters, Task Splitting, and Heartbeat)*
+## 🔴 KNOWN BLOCKERS (December 2025)
+
+### 1. Automatic Copilot Launch and Control
+**Status**: BLOCKED - No public API
+**Impact**: Worker automation (1.4) cannot fully work
+**Workaround Options**:
+1. Manual prompt copy-paste (MVP acceptable)
+2. Use `workbench.action.chat.open` - needs testing
+3. File-based signaling (Copilot reads instructions from file)
+
+### 2. Copilot Idle Detection  
+**Status**: BLOCKED - No public API
+**Impact**: Cannot auto-continue tasks
+**Workaround**: Time-based heuristics or file watcher on output
+
+---
+
+*Last updated: December 7, 2025 (Post-Audit)*
+*Version: 0.3 (with Adapters, Task Splitting, Heartbeat, and Audit Notes)*

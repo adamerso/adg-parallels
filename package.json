@@ -10,12 +10,12 @@
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/adg-parallels.git"
+    "url": "https://github.com/adamerso/adg-parallels.git"
   },
   "bugs": {
-    "url": "https://github.com/YOUR_USERNAME/adg-parallels/issues"
+    "url": "https://github.com/adamerso/adg-parallels/issues"
   },
-  "homepage": "https://github.com/YOUR_USERNAME/adg-parallels#readme",
+  "homepage": "https://github.com/adamerso/adg-parallels#readme",
   "engines": {
     "vscode": "^1.99.0"
   },
@@ -111,11 +111,11 @@
     "typescript": "^5.8.2",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1"
-  },pendencies": {
+  },
+  "dependencies": {
     "mustache": "^4.2.0"
-  }
-}
-,
+  },
   "overrides": {
     "undici": "5.28.4"
   }
+}

@@ -28,7 +28,7 @@ let lifecycleManager: WorkerLifecycleManager | undefined;
 // =============================================================================
 
 /**
- * Extension activation entry point
+ * Extension activation entry point4
  */
 export function activate(context: vscode.ExtensionContext): void {
   // Initialize logger
