@@ -1,0 +1,112 @@
+{
+  "name": "adg-parallels",
+  "displayName": "ADG-Parallels",
+  "description": "AI Delegation Grid - Parallel task processing through multiple GitHub Copilot instances in a corporate hierarchy. Many Ejajkas, One Goal! 🥚",
+  "version": "0.1.0",
+  "publisher": "adg-parallels",
+  "author": {
+    "name": "ADG-Parallels Team"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/adg-parallels.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YOUR_USERNAME/adg-parallels/issues"
+  },
+  "homepage": "https://github.com/YOUR_USERNAME/adg-parallels#readme",
+  "engines": {
+    "vscode": "^1.99.0"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "copilot",
+    "ai",
+    "parallel",
+    "automation",
+    "multi-agent",
+    "ejajka"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "adg-parallels.provisionProject",
+        "title": "ADG: Provision New Project"
+      },
+      {
+        "command": "adg-parallels.startWorkers",
+        "title": "ADG: Start Workers"
+      },
+      {
+        "command": "adg-parallels.showDashboard",
+        "title": "ADG: Show Dashboard"
+      },
+      {
+        "command": "adg-parallels.pauseWorkers",
+        "title": "ADG: Pause All Workers"
+      },
+      {
+        "command": "adg-parallels.resumeWorkers",
+        "title": "ADG: Resume Workers"
+      },
+      {
+        "command": "adg-parallels.abortProject",
+        "title": "ADG: Abort Project"
+      }
+    ],
+    "configuration": {
+      "title": "ADG-Parallels",
+      "properties": {
+        "adg-parallels.defaultWorkerCount": {
+          "type": "number",
+          "default": 4,
+          "minimum": 1,
+          "maximum": 16,
+          "description": "Default number of workers to create"
+        },
+        "adg-parallels.heartbeatInterval": {
+          "type": "number",
+          "default": 30,
+          "minimum": 10,
+          "maximum": 120,
+          "description": "Heartbeat interval in seconds"
+        },
+        "adg-parallels.unresponsiveThreshold": {
+          "type": "number",
+          "default": 90,
+          "minimum": 30,
+          "maximum": 300,
+          "description": "Time in seconds before worker is considered unresponsive"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test",
+    "vsix": "npx -y vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.99.0",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.28.0",
+    "@typescript-eslint/parser": "^8.28.0",
+    "eslint": "^9.23.0",
+    "typescript": "^5.8.2",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1"
+  },
+  "dependencies": {
+    "mustache": "^4.2.0"
+  }
+}

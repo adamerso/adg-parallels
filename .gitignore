@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+out/
+dist/
+
+# Build outputs
+*.vsix
+
+# TypeScript
+*.tsbuildinfo
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Archive (Polish versions, drafts)
+archive/
+
+# The "broken" extension we analyzed (remove before publish)
+copilot-task-delegate-main/
+copilot-task-delegate-main.zip
