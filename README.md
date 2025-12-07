@@ -1,4 +1,10 @@
 # 🥚 ADG-Parallels  
+
+### READ RELEASE DESCRIPTION FOR MORE ACTUAL DETAILS :)
+
+
+
+
 ### _AI Delegation Grid — Because one AI is never enough._
 
 ---
