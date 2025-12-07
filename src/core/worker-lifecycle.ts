@@ -352,9 +352,28 @@ Good luck, worker! 🚀
    * Perform health check on all workers
    */
   private async performHealthCheck(): Promise<void> {
+    // First check if there are any pending tasks - if not, no need to monitor
+    const hasPending = await this.taskManager.hasPendingTasks();
+    const isAllCompleted = await this.taskManager.isAllCompleted();
+    
+    if (isAllCompleted) {
+      logger.info('All tasks completed, stopping health monitoring');
+      this.stopHealthMonitoring();
+      return;
+    }
+    
     const unhealthyWorkers: WorkerInfo[] = [];
 
     for (const [id, worker] of this.workers) {
+      // Check if worker has finished flag - means it completed normally, not crashed
+      const finishedFlagPath = path.join(worker.workerDir, 'finished.flag');
+      if (pathExists(finishedFlagPath)) {
+        // Worker finished gracefully - mark as healthy and skip
+        worker.isHealthy = true;
+        logger.debug(`Worker ${id} has finished flag, skipping health check`);
+        continue;
+      }
+
       // Reload heartbeat
       if (pathExists(worker.heartbeatPath)) {
         worker.heartbeat = readJson<WorkerHeartbeat>(worker.heartbeatPath) ?? undefined;
@@ -369,9 +388,22 @@ Good luck, worker! 🚀
       }
     }
 
-    // Handle unhealthy workers
-    for (const worker of unhealthyWorkers) {
-      await this.handleUnhealthyWorker(worker);
+    // Handle unhealthy workers - but only if there's work to do
+    if (hasPending && unhealthyWorkers.length > 0) {
+      for (const worker of unhealthyWorkers) {
+        await this.handleUnhealthyWorker(worker);
+      }
+    }
+  }
+
+  /**
+   * Stop health monitoring
+   */
+  private stopHealthMonitoring(): void {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = undefined;
+      logger.info('Health monitoring stopped');
     }
   }
 

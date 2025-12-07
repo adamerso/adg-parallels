@@ -771,6 +771,15 @@ export async function executeTask(autoMode?: 'all' | 'next'): Promise<void> {
       const autoClose = config.get('workerAutoClose', true);
       const autoCloseDelay = config.get('workerAutoCloseDelay', 3000) as number;
       
+      // Create finished flag so manager knows we're done (not crashed)
+      const finishedFlagPath = path.join(workspaceRoot, 'finished.flag');
+      fs.writeFileSync(finishedFlagPath, JSON.stringify({
+        workerId: workerConfig?.workerId || 'unknown',
+        finishedAt: new Date().toISOString(),
+        reason: 'no_pending_tasks'
+      }, null, 2));
+      logger.info(`🏁 Created finished flag: ${finishedFlagPath}`);
+
       if (autoMode && autoClose) {
         // Auto-mode: close automatically after delay
         vscode.window.showInformationMessage(
@@ -927,6 +936,15 @@ export async function executeTask(autoMode?: 'all' | 'next'): Promise<void> {
       
       // After completing all tasks, handle worker window
       if (roleInfo.role === 'worker') {
+        // Create finished flag so manager knows we're done (not crashed)
+        const finishedFlagPath = path.join(workspaceRoot, 'finished.flag');
+        fs.writeFileSync(finishedFlagPath, JSON.stringify({
+          workerId: workerConfig!.workerId,
+          finishedAt: new Date().toISOString(),
+          reason: 'all_tasks_completed'
+        }, null, 2));
+        logger.info(`🏁 Created finished flag: ${finishedFlagPath}`);
+
         const config = vscode.workspace.getConfiguration('adg-parallels');
         const autoClose = config.get('workerAutoClose', true);
         const autoCloseDelay = config.get('workerAutoCloseDelay', 3000) as number;
