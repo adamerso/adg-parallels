@@ -4,7 +4,7 @@
  * Multi-step webview wizard for creating new projects.
  * Features smooth transitions, real-time validation, and preview.
  * 
- * v0.3.0
+ * v0.3.0 - Now with adapter selection as Step 0
  */
 
 import * as vscode from 'vscode';
@@ -12,6 +12,7 @@ import * as path from 'path';
 import { getSidebarProvider } from './sidebar-webview';
 import { ensureDir, writeJson, pathExists } from '../utils/file-operations';
 import { logger } from '../utils/logger';
+import { ADAPTER_REGISTRY, getAdapterInfo } from './adapter-wizards';
 
 // =============================================================================
 // TYPES
@@ -20,6 +21,7 @@ import { logger } from '../utils/logger';
 export interface WizardState {
   currentStep: number;
   totalSteps: number;
+  selectedAdapter: string | null;  // null means Step 0 (adapter selection)
   projectCodename: string;
   workerCount: number;
   taskType: string;
@@ -29,13 +31,15 @@ export interface WizardState {
   heartbeatInterval: number;
   maxRetries: number;
   outputFormat: string;
+  customOutputFormat: string;
   isValid: boolean;
   errors: Record<string, string>;
 }
 
 const DEFAULT_STATE: WizardState = {
-  currentStep: 1,
-  totalSteps: 4,
+  currentStep: 0,  // Start at Step 0 (adapter selection)
+  totalSteps: 5,   // Step 0 + 4 legacy steps
+  selectedAdapter: null,
   projectCodename: '',
   workerCount: 4,
   taskType: 'article-generation',
@@ -45,6 +49,7 @@ const DEFAULT_STATE: WizardState = {
   heartbeatInterval: 30,
   maxRetries: 3,
   outputFormat: 'markdown',
+  customOutputFormat: '',
   isValid: false,
   errors: {},
 };
@@ -92,6 +97,9 @@ export class ProjectWizardPanel {
           case 'cancel':
             this.dispose();
             break;
+          case 'selectAdapter':
+            await this._selectAdapter(message.adapterId);
+            break;
         }
       },
       null,
@@ -99,7 +107,7 @@ export class ProjectWizardPanel {
     );
   }
 
-  public static show(extensionUri: vscode.Uri): void {
+  public static show(extensionUri: vscode.Uri, context?: vscode.ExtensionContext): void {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -121,6 +129,9 @@ export class ProjectWizardPanel {
     );
 
     ProjectWizardPanel.currentPanel = new ProjectWizardPanel(panel, extensionUri);
+    if (context) {
+      ProjectWizardPanel.currentPanel.setContext(context);
+    }
   }
 
   public dispose(): void {
@@ -164,6 +175,11 @@ export class ProjectWizardPanel {
       errors.customTaskType = 'Please enter a custom task type name';
     }
 
+    // Step 1: Custom output format
+    if (this._state.outputFormat === 'custom' && !this._state.customOutputFormat) {
+      errors.customOutputFormat = 'Please describe the custom output format';
+    }
+
     this._state.errors = errors;
     this._state.isValid = Object.keys(errors).length === 0;
   }
@@ -176,17 +192,51 @@ export class ProjectWizardPanel {
   }
 
   private _prevStep(): void {
-    if (this._state.currentStep > 1) {
+    if (this._state.currentStep > 0) {
       this._state.currentStep--;
+      // If going back to Step 0, reset adapter selection
+      if (this._state.currentStep === 0) {
+        this._state.selectedAdapter = null;
+      }
       this._update();
     }
   }
 
   private _goToStep(step: number): void {
-    if (step >= 1 && step <= this._state.totalSteps) {
+    if (step >= 0 && step <= this._state.totalSteps) {
       this._state.currentStep = step;
       this._update();
     }
+  }
+
+  private async _selectAdapter(adapterId: string): Promise<void> {
+    const adapterInfo = getAdapterInfo(adapterId);
+    if (!adapterInfo) {
+      vscode.window.showErrorMessage(`Unknown adapter: ${adapterId}`);
+      return;
+    }
+
+    // If custom-legacy, continue with this wizard
+    if (adapterId === 'custom-legacy') {
+      this._state.selectedAdapter = adapterId;
+      this._state.currentStep = 1;
+      this._update();
+      return;
+    }
+
+    // For other adapters, close this panel and open their wizard
+    this.dispose();
+    
+    // Get the extension context from somewhere (we need to pass it)
+    // For now, call the showWizard function
+    adapterInfo.showWizard(this._context);
+  }
+
+  // Store extension context for adapter switching
+  private _context!: vscode.ExtensionContext;
+  
+  public setContext(context: vscode.ExtensionContext): void {
+    this._context = context;
   }
 
   // ===========================================================================
@@ -336,10 +386,14 @@ export class ProjectWizardPanel {
       `project_${this._state.projectCodename}_adg-tasks.json`
     );
 
+    const outputFormat = this._state.outputFormat === 'custom'
+      ? { type: 'custom', description: this._state.customOutputFormat }
+      : { type: this._state.outputFormat };
+
     const sampleTasks = {
       projectCodename: this._state.projectCodename,
       taskType: taskType,
-      outputFormat: this._state.outputFormat,
+      outputFormat: outputFormat,
       createdAt: new Date().toISOString(),
       tasks: [
         {
@@ -403,33 +457,40 @@ export class ProjectWizardPanel {
 
     <!-- Navigation -->
     <div class="nav-buttons">
-      <button 
-        class="btn btn-secondary" 
-        onclick="send('prevStep')"
-        ${state.currentStep === 1 ? 'disabled' : ''}
-      >
-        ← Back
-      </button>
-      
-      <button class="btn btn-ghost" onclick="send('cancel')">
-        Cancel
-      </button>
-      
-      ${state.currentStep < state.totalSteps ? `
-        <button 
-          class="btn btn-primary" 
-          onclick="send('nextStep')"
-        >
-          Next Step →
+      ${state.currentStep === 0 ? `
+        <!-- Step 0: Only Cancel button, adapter cards handle navigation -->
+        <button class="btn btn-ghost" onclick="send('cancel')">
+          Cancel
         </button>
       ` : `
         <button 
-          class="btn btn-success" 
-          onclick="send('createProject')"
-          ${!state.isValid ? 'disabled' : ''}
+          class="btn btn-secondary" 
+          onclick="send('prevStep')"
+          ${state.currentStep <= 1 ? 'disabled' : ''}
         >
-          🚀 Create Project
+          ← Back
         </button>
+        
+        <button class="btn btn-ghost" onclick="send('cancel')">
+          Cancel
+        </button>
+        
+        ${state.currentStep < state.totalSteps ? `
+          <button 
+            class="btn btn-primary" 
+            onclick="send('nextStep')"
+          >
+            Next Step →
+          </button>
+        ` : `
+          <button 
+            class="btn btn-success" 
+            onclick="send('createProject')"
+            \${!state.isValid ? 'disabled' : ''}
+          >
+            🚀 Create Project
+          </button>
+        `}
       `}
     </div>
   </div>
@@ -454,7 +515,29 @@ export class ProjectWizardPanel {
   }
 
   private _renderProgressSteps(): string {
+    // If we're at Step 0 (adapter selection), show a simplified progress bar
+    if (this._state.currentStep === 0) {
+      return `
+        <div class="step active">
+          <div class="step-circle">🔌</div>
+          <div class="step-label">Choose Adapter</div>
+        </div>
+        <div class="step-line"></div>
+        <div class="step">
+          <div class="step-circle">⋯</div>
+          <div class="step-label">Configure</div>
+        </div>
+        <div class="step-line"></div>
+        <div class="step">
+          <div class="step-circle">🚀</div>
+          <div class="step-label">Create</div>
+        </div>
+      `;
+    }
+    
+    // Legacy steps (after choosing custom-legacy adapter)
     const steps = [
+      { num: 0, label: 'Adapter', icon: '🔌' },
       { num: 1, label: 'Project Info', icon: '📝' },
       { num: 2, label: 'Workers', icon: '🥚' },
       { num: 3, label: 'Task Type', icon: '⚙️' },
@@ -483,12 +566,51 @@ export class ProjectWizardPanel {
 
   private _renderCurrentStep(): string {
     switch (this._state.currentStep) {
+      case 0: return this._renderStep0();  // Adapter selection
       case 1: return this._renderStep1();
       case 2: return this._renderStep2();
       case 3: return this._renderStep3();
       case 4: return this._renderStep4();
       default: return '';
     }
+  }
+
+  private _renderStep0(): string {
+    // Step 0: Adapter Selection
+    return `
+      <div class="step-content fade-in">
+        <h2>🔌 Choose Your Adapter</h2>
+        <p class="step-description">
+          Select a pipeline adapter that matches your task. Each adapter provides 
+          specialized workflows optimized for specific content types.
+        </p>
+        
+        <div class="adapter-grid">
+          ${ADAPTER_REGISTRY.map(adapter => `
+            <div class="adapter-card" onclick="send('selectAdapter', {adapterId: '${adapter.id}'})">
+              <div class="adapter-icon">${adapter.icon}</div>
+              <div class="adapter-name">${adapter.name}</div>
+              <div class="adapter-desc">${adapter.description}</div>
+              <div class="adapter-stages">
+                <span class="stages-label">${adapter.stages} stages</span>
+                ${adapter.hasAudit ? '<span class="audit-badge">🔍 Audit</span>' : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        
+        <div class="adapter-help">
+          <h4>💡 Not sure which to choose?</h4>
+          <ul>
+            <li><strong>Article Generator</strong> - Best for blog posts, documentation, marketing content</li>
+            <li><strong>Code Generator</strong> - For generating code with automated review</li>
+            <li><strong>Research Report</strong> - For in-depth research and analysis</li>
+            <li><strong>Translation</strong> - For translating content between languages</li>
+            <li><strong>Custom (Legacy)</strong> - Full manual control over configuration</li>
+          </ul>
+        </div>
+      </div>
+    `;
   }
 
   private _renderStep1(): string {
@@ -526,8 +648,25 @@ export class ProjectWizardPanel {
             <option value="html" ${this._state.outputFormat === 'html' ? 'selected' : ''}>HTML (.html)</option>
             <option value="json" ${this._state.outputFormat === 'json' ? 'selected' : ''}>JSON (.json)</option>
             <option value="text" ${this._state.outputFormat === 'text' ? 'selected' : ''}>Plain Text (.txt)</option>
+            <option value="code" ${this._state.outputFormat === 'code' ? 'selected' : ''}>Source Code (various)</option>
+            <option value="custom" ${this._state.outputFormat === 'custom' ? 'selected' : ''}>CUSTOM...</option>
           </select>
         </div>
+        
+        ${this._state.outputFormat === 'custom' ? `
+          <div class="form-group">
+            <label for="customOutputFormat">Custom Output Description</label>
+            <textarea 
+              id="customOutputFormat"
+              class="input textarea ${this._state.errors.customOutputFormat ? 'input-error' : ''}"
+              placeholder="e.g., TypeScript modules (.ts), Python scripts with docstrings, React components with tests..."
+              oninput="updateField('customOutputFormat', this.value)"
+              rows="3"
+            >${this._state.customOutputFormat}</textarea>
+            ${this._state.errors.customOutputFormat ? `<div class="error-text">${this._state.errors.customOutputFormat}</div>` : ''}
+            <div class="hint">Describe what kind of output files workers should generate</div>
+          </div>
+        ` : ''}
       </div>
     `;
   }
@@ -704,7 +843,7 @@ export class ProjectWizardPanel {
             </div>
             <div class="review-row">
               <span class="review-label">Output Format:</span>
-              <span class="review-value">${this._state.outputFormat}</span>
+              <span class="review-value">${this._state.outputFormat === 'custom' ? `CUSTOM: ${this._state.customOutputFormat}` : this._state.outputFormat}</span>
             </div>
           </div>
           
@@ -953,6 +1092,12 @@ export class ProjectWizardPanel {
         color: var(--vscode-input-foreground);
         font-size: 14px;
         transition: all 0.2s ease;
+      }
+      
+      .textarea {
+        resize: vertical;
+        min-height: 80px;
+        font-family: var(--vscode-font-family);
       }
       
       .input:focus, .select:focus {
@@ -1241,6 +1386,106 @@ export class ProjectWizardPanel {
       .btn-ghost:hover:not(:disabled) {
         background: var(--vscode-list-hoverBackground);
       }
+      
+      /* Adapter Selection Grid (Step 0) */
+      .adapter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      
+      .adapter-card {
+        background: var(--vscode-editor-background);
+        border: 2px solid var(--vscode-panel-border);
+        border-radius: 12px;
+        padding: 20px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: center;
+      }
+      
+      .adapter-card:hover {
+        border-color: var(--vscode-focusBorder);
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      }
+      
+      .adapter-card:active {
+        transform: translateY(-2px);
+      }
+      
+      .adapter-icon {
+        font-size: 48px;
+        margin-bottom: 12px;
+      }
+      
+      .adapter-name {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: var(--vscode-foreground);
+      }
+      
+      .adapter-desc {
+        font-size: 12px;
+        color: var(--vscode-descriptionForeground);
+        margin-bottom: 12px;
+        line-height: 1.4;
+      }
+      
+      .adapter-stages {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      
+      .stages-label {
+        background: var(--vscode-badge-background);
+        color: var(--vscode-badge-foreground);
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 500;
+      }
+      
+      .audit-badge {
+        background: rgba(255, 165, 0, 0.2);
+        color: #ffa500;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 500;
+      }
+      
+      .adapter-help {
+        background: rgba(0, 120, 212, 0.05);
+        border: 1px dashed var(--vscode-focusBorder);
+        border-radius: 8px;
+        padding: 16px;
+        margin-top: 24px;
+      }
+      
+      .adapter-help h4 {
+        font-size: 14px;
+        margin-bottom: 12px;
+        color: var(--vscode-textLink-foreground);
+      }
+      
+      .adapter-help ul {
+        margin-left: 20px;
+        font-size: 13px;
+        color: var(--vscode-descriptionForeground);
+      }
+      
+      .adapter-help li {
+        margin-bottom: 6px;
+      }
+      
+      .adapter-help strong {
+        color: var(--vscode-foreground);
+      }
     `;
   }
 }
@@ -1263,5 +1508,5 @@ function getNonce(): string {
 // =============================================================================
 
 export function showProjectWizard(context: vscode.ExtensionContext): void {
-  ProjectWizardPanel.show(context.extensionUri);
+  ProjectWizardPanel.show(context.extensionUri, context);
 }

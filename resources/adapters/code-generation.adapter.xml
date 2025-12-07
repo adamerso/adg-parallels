@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    ADG-Parallels v0.3.0 - Pipeline Adapter
+    Code Generation with Review
+    
+    Pipeline: analyze requirements → generate code → code review → testing → completed
+-->
+<adapter xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="../schemas/adapter.xsd">
+    
+    <!-- METADATA -->
+    <metadata>
+        <id>code-generation</id>
+        <name>Code Generation with Review</name>
+        <version>1.0.0</version>
+        <description>Generate code from specifications with code review and optional testing</description>
+    </metadata>
+    
+    <!-- ADAPTER TYPE -->
+    <allowed-adapter-types>
+        <type>normal</type>
+        <type>meta</type>
+        <type>audit</type>
+        <type>CUSTOM</type>
+    </allowed-adapter-types>
+    <adapter-type>normal</adapter-type>
+    
+    <!-- OUTPUT FORMAT -->
+    <allowed-output-formats>
+        <format>code</format>
+        <format>markdown</format>
+        <format>json</format>
+        <format>CUSTOM</type>
+    </allowed-output-formats>
+    <output-format>code</output-format>
+    
+    <!-- PIPELINE DEFINITION -->
+    <pipeline>
+        
+        <!-- Stage 1: Unassigned -->
+        <stage id="1" name="unassigned">
+            <task-to-fulfill>
+                Zadanie czeka na przydzielenie do workera.
+            </task-to-fulfill>
+            <next-stage>
+                <routing>Automatycznie → analyzing_requirements</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 2: Analyzing Requirements -->
+        <stage id="2" name="analyzing_requirements">
+            <allowed-task-types>
+                <type>analysis</type>
+                <type>planning</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>analysis</task-type>
+            
+            <task-to-fulfill>
+                Przeanalizuj wymagania dla kodu do wygenerowania:
+                
+                1. Przeczytaj tytuł i opis zadania
+                2. Zidentyfikuj język programowania i framework
+                3. Określ strukturę kodu (funkcja, klasa, moduł, etc.)
+                4. Zidentyfikuj zależności i wymagane importy
+                5. Zaplanuj interfejs (inputs, outputs, types)
+                
+                Wynik: szczegółowy plan implementacji z pseudokodem.
+            </task-to-fulfill>
+            
+            <executor>gpt-4o</executor>
+            
+            <input>
+                <source name="task-definition" stage="initial">
+                    <description>Tytuł i opis zadania z tasks.xml</description>
+                </source>
+                <source name="code-params" stage="initial">
+                    <description>Parametry: język, framework, typ kodu</description>
+                </source>
+            </input>
+            
+            <output>
+                <instructions>
+                    Wygeneruj plan implementacji:
+                    
+                    ## Analysis Summary
+                    - Language: [język]
+                    - Framework: [framework lub "none"]
+                    - Code type: [function/class/module/etc.]
+                    
+                    ## Interface Design
+                    - Inputs: [lista z typami]
+                    - Outputs: [typ zwracany]
+                    
+                    ## Implementation Plan
+                    1. [krok 1]
+                    2. [krok 2]
+                    ...
+                    
+                    ## Pseudocode
+                    ```
+                    [pseudokod]
+                    ```
+                </instructions>
+            </output>
+            
+            <next-stage>
+                <routing>Po analizie → during_code_generation</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 3: Code Generation -->
+        <stage id="3" name="during_code_generation">
+            <allowed-task-types>
+                <type>generation</type>
+                <type>coding</type>
+                <type>implementation</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>generation</task-type>
+            
+            <task-to-fulfill>
+                Wygeneruj kod na podstawie planu implementacji:
+                
+                1. Zaimplementuj wszystkie zaplanowane elementy
+                2. Użyj idiomatycznego stylu dla danego języka
+                3. Dodaj obsługę błędów (try/catch, error handling)
+                4. Dodaj komentarze dokumentacyjne (JSDoc, docstrings, etc.)
+                5. Użyj sensownych nazw zmiennych i funkcji
+                6. Zaimplementuj walidację inputów gdzie potrzebne
+                
+                WAŻNE:
+                - Kod musi być kompletny i gotowy do uruchomienia
+                - Nie używaj placeholder'ów typu "// TODO"
+                - Jeśli potrzebne importy - dodaj je na początku
+            </task-to-fulfill>
+            
+            <executor>gpt-4o</executor>
+            
+            <input>
+                <source name="implementation-plan" stage="analyzing_requirements">
+                    <description>Plan implementacji z poprzedniego etapu</description>
+                </source>
+                <source name="original-requirements" stage="initial">
+                    <description>Oryginalne wymagania</description>
+                </source>
+            </input>
+            
+            <output>
+                <instructions>
+                    Wygeneruj kompletny kod:
+                    
+                    ```[język]
+                    // Imports
+                    ...
+                    
+                    // Documentation
+                    /**
+                     * [Opis]
+                     * @param ...
+                     * @returns ...
+                     */
+                    
+                    // Implementation
+                    [kod]
+                    
+                    // Export (jeśli dotyczy)
+                    ```
+                    
+                    Na końcu NIE dodawaj "TASK COMPLETED" - parser wykryje zakończenie.
+                </instructions>
+            </output>
+            
+            <completion-detection>
+                <method>natural-end</method>
+                <min-length>100</min-length>
+                <fallback-signal>```</fallback-signal>
+            </completion-detection>
+            
+            <next-stage>
+                <routing>Po wygenerowaniu → awaiting_code_review</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 4: Awaiting Code Review -->
+        <stage id="4" name="awaiting_code_review">
+            <task-to-fulfill>
+                Kod oczekuje na code review.
+            </task-to-fulfill>
+            <next-stage>
+                <routing>Automatycznie → during_code_review</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 5: Code Review -->
+        <stage id="5" name="during_code_review" is-audit="true">
+            <allowed-task-types>
+                <type>review</type>
+                <type>audit</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>review</task-type>
+            
+            <task-to-fulfill>
+                Przeprowadź code review wygenerowanego kodu:
+                
+                ## Checklist
+                
+                ### 1. Correctness
+                - Czy kod realizuje wymagania?
+                - Czy logika jest poprawna?
+                - Czy obsługuje edge cases?
+                
+                ### 2. Code Quality
+                - Czy nazwy są sensowne i opisowe?
+                - Czy kod jest czytelny?
+                - Czy nie ma duplikacji?
+                
+                ### 3. Error Handling
+                - Czy błędy są obsługiwane?
+                - Czy waliduje inputy?
+                
+                ### 4. Security
+                - Czy nie ma podatności (injection, XSS, etc.)?
+                - Czy nie wyciekają dane?
+                
+                ### 5. Performance
+                - Czy algorytm jest wydajny?
+                - Czy nie ma memory leaks?
+                
+                Werdykt: PASS lub FAIL z listą issues do poprawy.
+            </task-to-fulfill>
+            
+            <executor>claude-sonnet</executor>
+            
+            <input>
+                <source name="generated-code" stage="during_code_generation">
+                    <description>Wygenerowany kod do review</description>
+                </source>
+                <source name="original-requirements" stage="initial">
+                    <description>Oryginalne wymagania do weryfikacji</description>
+                </source>
+            </input>
+            
+            <forbidden-patterns>
+                <pattern reason="placeholder">TODO</pattern>
+                <pattern reason="placeholder">FIXME</pattern>
+                <pattern reason="placeholder">XXX</pattern>
+                <pattern reason="incomplete">throw new Error('Not implemented')</pattern>
+                <pattern reason="incomplete">pass  # TODO</pattern>
+                <pattern reason="security">eval(</pattern>
+                <pattern reason="security">exec(</pattern>
+                <pattern reason="debug">console.log</pattern>
+                <pattern reason="debug">print(</pattern>
+            </forbidden-patterns>
+            
+            <audit-result>
+                <pass-criteria>
+                    Kod realizuje wymagania AND
+                    Brak krytycznych błędów AND
+                    Brak forbidden patterns AND
+                    Code quality >= 7/10
+                </pass-criteria>
+                <on-pass>
+                    <routing>→ completed</routing>
+                </on-pass>
+                <on-fail>
+                    <routing>→ during_code_generation (popraw issues)</routing>
+                    <feedback-to-stage>during_code_generation</feedback-to-stage>
+                </on-fail>
+            </audit-result>
+            
+            <output>
+                <instructions>
+                    ## Code Review Report
+                    
+                    ### Summary
+                    [Ogólna ocena kodu]
+                    
+                    ### Correctness: [✅/❌]
+                    [Komentarz]
+                    
+                    ### Code Quality: [X/10]
+                    [Komentarz]
+                    
+                    ### Error Handling: [✅/❌]
+                    [Komentarz]
+                    
+                    ### Security: [✅/❌]
+                    [Komentarz]
+                    
+                    ### Forbidden Patterns Found
+                    [Lista lub "None"]
+                    
+                    ### Issues to Fix
+                    1. [Issue 1]
+                    2. [Issue 2]
+                    ...
+                    
+                    ---
+                    
+                    ## Verdict: [PASS/FAIL]
+                    [Uzasadnienie]
+                </instructions>
+            </output>
+        </stage>
+        
+        <!-- Stage 6: Completed -->
+        <stage id="6" name="completed" is-terminal="true">
+            <task-to-fulfill>
+                Kod został wygenerowany i przeszedł code review.
+                Output dostępny w folderze outputs.
+            </task-to-fulfill>
+        </stage>
+        
+        <!-- Stage 7: Failed -->
+        <stage id="7" name="failed" is-terminal="true">
+            <task-to-fulfill>
+                Generowanie kodu nie powiodło się po przekroczeniu limitu prób.
+            </task-to-fulfill>
+        </stage>
+        
+    </pipeline>
+    
+    <!-- OUTPUT CONFIGURATION -->
+    <output-config>
+        <save-location>outputs/code/</save-location>
+        <file-extension>.generated</file-extension>
+        <filename-pattern>
+            <instructions>
+                Nazwa pliku: task_ID + tytuł jako slug + rozszerzenie języka.
+                Przykład: task_001_user_authentication.ts
+                Rozszerzenia: .ts, .js, .py, .java, .cs, .go, .rs, etc.
+            </instructions>
+        </filename-pattern>
+    </output-config>
+    
+    <!-- RETRY CONFIGURATION -->
+    <retry-config>
+        <max-retries>3</max-retries>
+        <retry-on-fail>true</retry-on-fail>
+        <backoff-strategy>exponential</backoff-strategy>
+    </retry-config>
+    
+</adapter>

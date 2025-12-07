@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    ADG-Parallels v0.3.0 - Pipeline Adapter
+    Research Report
+    
+    Pipeline: define scope → gather sources → analyze → synthesize → format report
+-->
+<adapter xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="../schemas/adapter.xsd">
+    
+    <!-- METADATA -->
+    <metadata>
+        <id>research-report</id>
+        <name>Research Report Generator</name>
+        <version>1.0.0</version>
+        <description>Conduct research on a topic and generate comprehensive reports</description>
+    </metadata>
+    
+    <!-- ADAPTER TYPE -->
+    <allowed-adapter-types>
+        <type>normal</type>
+        <type>meta</type>
+        <type>CUSTOM</type>
+    </allowed-adapter-types>
+    <adapter-type>normal</adapter-type>
+    
+    <!-- OUTPUT FORMAT -->
+    <allowed-output-formats>
+        <format>markdown</format>
+        <format>html</format>
+        <format>json</format>
+        <format>CUSTOM</format>
+    </allowed-output-formats>
+    <output-format>markdown</output-format>
+    
+    <!-- PIPELINE DEFINITION -->
+    <pipeline>
+        
+        <!-- Stage 1: Unassigned -->
+        <stage id="1" name="unassigned">
+            <task-to-fulfill>
+                Zadanie czeka na przydzielenie do workera.
+            </task-to-fulfill>
+            <next-stage>
+                <routing>Automatycznie → defining_scope</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 2: Defining Research Scope -->
+        <stage id="2" name="defining_scope">
+            <allowed-task-types>
+                <type>planning</type>
+                <type>analysis</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>planning</task-type>
+            
+            <task-to-fulfill>
+                Zdefiniuj zakres badania:
+                
+                1. Przeanalizuj temat i pytanie badawcze
+                2. Zidentyfikuj kluczowe aspekty do zbadania
+                3. Określ głębokość analizy (overview vs deep-dive)
+                4. Zaplanuj strukturę raportu
+                5. Zidentyfikuj potencjalne źródła informacji
+                
+                Wynik: szczegółowy plan badania.
+            </task-to-fulfill>
+            
+            <executor>gpt-4o</executor>
+            
+            <input>
+                <source name="research-topic" stage="initial">
+                    <description>Temat i pytanie badawcze z tasks.xml</description>
+                </source>
+                <source name="research-params" stage="initial">
+                    <description>Parametry: scope, depth, sources</description>
+                </source>
+            </input>
+            
+            <output>
+                <instructions>
+                    ## Research Plan
+                    
+                    ### Topic
+                    [Temat badania]
+                    
+                    ### Research Question
+                    [Główne pytanie badawcze]
+                    
+                    ### Key Aspects to Investigate
+                    1. [Aspekt 1]
+                    2. [Aspekt 2]
+                    ...
+                    
+                    ### Depth Level
+                    [Overview / Standard / Deep-dive]
+                    
+                    ### Report Structure
+                    1. Executive Summary
+                    2. [Sekcja 1]
+                    3. [Sekcja 2]
+                    ...
+                    N. Conclusions &amp; Recommendations
+                    
+                    ### Potential Sources
+                    - [Typ źródła 1]
+                    - [Typ źródła 2]
+                </instructions>
+            </output>
+            
+            <next-stage>
+                <routing>Po zdefiniowaniu → during_research</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 3: Conducting Research -->
+        <stage id="3" name="during_research">
+            <allowed-task-types>
+                <type>research</type>
+                <type>analysis</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>research</task-type>
+            
+            <task-to-fulfill>
+                Przeprowadź badanie według planu:
+                
+                1. Zbierz informacje dla każdego aspektu
+                2. Analizuj i syntetyzuj zebrane dane
+                3. Identyfikuj kluczowe wnioski
+                4. Notuj źródła i cytaty
+                5. Identyfikuj luki w wiedzy
+                
+                WAŻNE:
+                - Bądź obiektywny i oparty na faktach
+                - Rozróżniaj fakty od opinii
+                - Notuj ograniczenia i zastrzeżenia
+            </task-to-fulfill>
+            
+            <executor>gpt-4o</executor>
+            
+            <input>
+                <source name="research-plan" stage="defining_scope">
+                    <description>Plan badania z poprzedniego etapu</description>
+                </source>
+                <source name="attachments" stage="initial">
+                    <description>Załączone materiały źródłowe (jeśli są)</description>
+                </source>
+            </input>
+            
+            <output>
+                <instructions>
+                    ## Research Findings
+                    
+                    ### Aspect 1: [Nazwa]
+                    #### Key Findings
+                    - [Finding 1]
+                    - [Finding 2]
+                    
+                    #### Supporting Evidence
+                    [Cytaty, dane, źródła]
+                    
+                    ### Aspect 2: [Nazwa]
+                    ...
+                    
+                    ### Cross-cutting Themes
+                    [Tematy przewijające się przez wszystkie aspekty]
+                    
+                    ### Knowledge Gaps
+                    [Co nie zostało w pełni zbadane]
+                    
+                    ### Preliminary Conclusions
+                    [Wstępne wnioski]
+                </instructions>
+            </output>
+            
+            <completion-detection>
+                <method>natural-end</method>
+                <min-length>500</min-length>
+            </completion-detection>
+            
+            <next-stage>
+                <routing>Po badaniu → during_synthesis</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 4: Synthesizing Findings -->
+        <stage id="4" name="during_synthesis">
+            <allowed-task-types>
+                <type>synthesis</type>
+                <type>analysis</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>synthesis</task-type>
+            
+            <task-to-fulfill>
+                Syntetyzuj wyniki badania:
+                
+                1. Połącz findings w spójną narrację
+                2. Wyciągnij główne wnioski
+                3. Sformułuj rekomendacje (jeśli dotyczy)
+                4. Zidentyfikuj implikacje
+                5. Przygotuj executive summary
+                
+                Wynik: gotowa treść raportu (bez formatowania).
+            </task-to-fulfill>
+            
+            <executor>claude-sonnet</executor>
+            
+            <input>
+                <source name="research-findings" stage="during_research">
+                    <description>Wyniki badania</description>
+                </source>
+                <source name="research-plan" stage="defining_scope">
+                    <description>Plan i struktura raportu</description>
+                </source>
+            </input>
+            
+            <output>
+                <instructions>
+                    ## Synthesized Report Content
+                    
+                    ### Executive Summary
+                    [Streszczenie 2-3 akapity]
+                    
+                    ### Main Body
+                    [Treść główna wg struktury z planu]
+                    
+                    ### Key Conclusions
+                    1. [Wniosek 1]
+                    2. [Wniosek 2]
+                    ...
+                    
+                    ### Recommendations
+                    1. [Rekomendacja 1]
+                    2. [Rekomendacja 2]
+                    ...
+                    
+                    ### Limitations
+                    [Ograniczenia badania]
+                </instructions>
+            </output>
+            
+            <next-stage>
+                <routing>Po syntezie → during_formatting</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 5: Formatting Report -->
+        <stage id="5" name="during_formatting">
+            <allowed-task-types>
+                <type>formatting</type>
+                <type>editing</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>formatting</task-type>
+            
+            <task-to-fulfill>
+                Sformatuj raport do finalnej postaci:
+                
+                1. Zastosuj profesjonalne formatowanie Markdown
+                2. Dodaj spis treści
+                3. Dodaj numerację sekcji
+                4. Sformatuj tabele i listy
+                5. Dodaj sekcję źródeł/referencji
+                6. Sprawdź spójność formatowania
+                
+                Wynik: gotowy, profesjonalny raport.
+            </task-to-fulfill>
+            
+            <executor>gpt-4o</executor>
+            
+            <input>
+                <source name="synthesized-content" stage="during_synthesis">
+                    <description>Zsyntetyzowana treść raportu</description>
+                </source>
+                <source name="format-params" stage="initial">
+                    <description>Parametry formatu (jeśli określone)</description>
+                </source>
+            </input>
+            
+            <output>
+                <instructions>
+                    Wygeneruj kompletny raport w formacie Markdown:
+                    
+                    # [Tytuł Raportu]
+                    
+                    **Data:** [data]
+                    **Autor:** ADG-Parallels Research Team
+                    
+                    ---
+                    
+                    ## Spis Treści
+                    - [Executive Summary](#executive-summary)
+                    - [1. Wprowadzenie](#1-wprowadzenie)
+                    ...
+                    
+                    ---
+                    
+                    ## Executive Summary
+                    [Treść]
+                    
+                    ## 1. Wprowadzenie
+                    [Treść]
+                    
+                    ...
+                    
+                    ## N. Wnioski i Rekomendacje
+                    [Treść]
+                    
+                    ---
+                    
+                    ## Źródła
+                    [Lista źródeł]
+                </instructions>
+            </output>
+            
+            <completion-detection>
+                <method>natural-end</method>
+                <min-length>800</min-length>
+            </completion-detection>
+            
+            <next-stage>
+                <routing>Po formatowaniu → completed</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 6: Completed -->
+        <stage id="6" name="completed" is-terminal="true">
+            <task-to-fulfill>
+                Raport badawczy został wygenerowany pomyślnie.
+                Output dostępny w folderze outputs.
+            </task-to-fulfill>
+        </stage>
+        
+        <!-- Stage 7: Failed -->
+        <stage id="7" name="failed" is-terminal="true">
+            <task-to-fulfill>
+                Generowanie raportu nie powiodło się.
+            </task-to-fulfill>
+        </stage>
+        
+    </pipeline>
+    
+    <!-- OUTPUT CONFIGURATION -->
+    <output-config>
+        <save-location>outputs/reports/</save-location>
+        <file-extension>.md</file-extension>
+        <filename-pattern>
+            <instructions>
+                Nazwa pliku: task_ID + "report" + temat jako slug.
+                Przykład: task_001_report_market_analysis.md
+            </instructions>
+        </filename-pattern>
+    </output-config>
+    
+    <!-- RETRY CONFIGURATION -->
+    <retry-config>
+        <max-retries>2</max-retries>
+        <retry-on-fail>true</retry-on-fail>
+        <backoff-strategy>linear</backoff-strategy>
+    </retry-config>
+    
+</adapter>

@@ -133,6 +133,17 @@
 - ✅ Auto-start processing after creation if enabled
 - ✅ Folder structure preview
 
+### 2.0.2 Adapter Wizards (NEW ✅)
+- ✅ **Step 0: Adapter Selection** - wybór typu adaptera przed startem wizarda
+- ✅ **ADAPTER_REGISTRY** - centralny rejestr adapterów z metadanymi
+- ✅ **Article Generator Wizard** (6 kroków) - artykuły z proofreading i audytem
+- ✅ **Code Generation Wizard** (6 kroków) - generowanie kodu z review i testami
+- ✅ **Research Report Wizard** (6 kroków) - raporty badawcze z syntezą źródeł
+- ✅ **Translation Wizard** (6 kroków) - tłumaczenia z glosariuszem i review
+- ✅ **Adapter Generator Wizard** (6 kroków) - meta-wizard do tworzenia nowych adapterów XML
+- ✅ **shared.ts** - współdzielone utility (getNonce, getBaseStyles) - rozwiązanie circular deps
+- ✅ Każdy wizard: multi-step, walidacja, progress bar, preview, tworzenie projektu
+
 ### 2.1 Dashboard (Webview)
 - ⬜ Command: `ADG: Show Dashboard`
 - ⬜ Task list with status colors and **pipeline stage names**
@@ -185,7 +196,10 @@
 ### 3.4 Built-in Adapters (Upgraded)
 - ✅ `generic.adapter.xml` - 3 stages
 - ✅ `article-with-audit.adapter.xml` - 8 stages
-- ✅ `translation.adapter.xml` - 5 stages
+- ✅ `translation.adapter.xml` - 7 stages (upgraded v0.3.1)
+- ✅ `code-generation.adapter.xml` - 7 stages (NEW v0.3.1)
+- ✅ `research-report.adapter.xml` - 7 stages (NEW v0.3.1)
+- ✅ `adapter-generator.adapter.xml` - 7 stages (meta-adapter)
 - ✅ `task-splitter.adapter.xml` - 4 stages
 - ⬜ `multi-model-research.adapter.xml` - 6 stages
 
@@ -422,7 +436,7 @@
 
 ---
 
-*Last updated: December 7, 2025*
-*Version: 0.3.0*
+*Last updated: December 8, 2025*
+*Version: 0.3.1*
 
-**Status:** v0.3.0 - Pipeline paradigm defined, XML migration planned. Production-tested with 4 workers × 10 tasks.
+**Status:** v0.3.1 - Adapter wizards complete. 5 dedicated wizard panels, Step 0 adapter selection, ADAPTER_REGISTRY.

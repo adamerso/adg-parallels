@@ -41,6 +41,9 @@ coverage/
 # Local workspace - private, not committed
 .adg-local-no-repo/
 
+# ADG project data (runtime, not in repo)
+.adg-parallels/
+
 # Archive (Polish versions, drafts)
 archive/
 

@@ -1,0 +1,349 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    ADG-Parallels v0.3.0 - Pipeline Adapter
+    XML Adapter Generator
+    
+    Meta-adapter do generowania innych adapterów XML.
+    Pipeline: analyze requirements → design stages → generate XML → validate
+-->
+<adapter xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="../schemas/adapter.xsd">
+    
+    <!-- METADATA -->
+    <metadata>
+        <id>adapter-generator</id>
+        <name>XML Adapter Generator</name>
+        <version>1.0.0</version>
+        <description>Generates new pipeline adapter XML files based on requirements</description>
+    </metadata>
+    
+    <!-- ADAPTER TYPE -->
+    <allowed-adapter-types>
+        <type>normal</type>
+        <type>meta</type>
+        <type>CUSTOM</type>
+    </allowed-adapter-types>
+    <adapter-type>normal</adapter-type>
+    
+    <!-- OUTPUT FORMAT -->
+    <allowed-output-formats>
+        <format>xml</format>
+        <format>CUSTOM</format>
+    </allowed-output-formats>
+    <output-format>xml</output-format>
+    
+    <!-- PIPELINE DEFINITION -->
+    <pipeline>
+        
+        <!-- Stage 1: Unassigned (initial) -->
+        <stage id="1" name="unassigned">
+            <task-to-fulfill>
+                Zadanie czeka na przydzielenie do workera.
+            </task-to-fulfill>
+            <next-stage>
+                <routing>Automatycznie → analyzing_requirements</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 2: Analyzing Requirements -->
+        <stage id="2" name="analyzing_requirements">
+            <allowed-task-types>
+                <type>analysis</type>
+                <type>research</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>analysis</task-type>
+            
+            <task-to-fulfill>
+                Przeanalizuj wymagania dla nowego adaptera:
+                
+                1. Przeczytaj opis zadania - jaki adapter ma powstać
+                2. Zidentyfikuj główne etapy pipeline'u (stages)
+                3. Określ jakie modele (executors) będą potrzebne na każdym etapie
+                4. Zidentyfikuj inputs i outputs dla każdego stage'a
+                5. Sprawdź czy potrzebny jest audit stage
+                
+                WAŻNE: Przeczytaj załączone pliki:
+                - article-with-audit.adapter.xml (wzorzec struktury)
+                - adapter.xsd (schemat walidacji)
+            </task-to-fulfill>
+            
+            <executor>gpt-4o</executor>
+            
+            <input>
+                <source name="task-description" stage="initial">
+                    <description>Opis wymaganego adaptera z tasks.json</description>
+                </source>
+                <source name="reference-adapter" stage="initial">
+                    <description>Wzorcowy adapter z attachments/</description>
+                </source>
+                <source name="xsd-schema" stage="initial">
+                    <description>Schemat XSD do walidacji</description>
+                </source>
+            </input>
+            
+            <output>
+                <instructions>
+                    Wygeneruj analizę w formacie:
+                    
+                    ## Analiza wymagań adaptera
+                    
+                    ### Cel adaptera
+                    [Opis co adapter ma robić]
+                    
+                    ### Planowane stages
+                    1. [stage_name] - [opis] - executor: [model]
+                    2. ...
+                    
+                    ### Inputs/Outputs
+                    [Opis przepływu danych między stages]
+                    
+                    ### Czy potrzebny audit?
+                    [TAK/NIE + uzasadnienie]
+                </instructions>
+            </output>
+            
+            <next-stage>
+                <routing>Po analizie → designing_pipeline</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 3: Designing Pipeline -->
+        <stage id="3" name="designing_pipeline">
+            <allowed-task-types>
+                <type>design</type>
+                <type>planning</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>design</task-type>
+            
+            <task-to-fulfill>
+                Zaprojektuj szczegółową strukturę pipeline'u:
+                
+                1. Zdefiniuj dokładne nazwy stages (snake_case)
+                2. Określ task-to-fulfill dla każdego stage'a
+                3. Przypisz executors (gpt-4o, claude-sonnet, gpt-4o-mini)
+                4. Zdefiniuj routing między stages
+                5. Jeśli potrzebny audit - zdefiniuj forbidden-patterns
+                6. Określ completion-detection dla głównych stages
+                
+                Użyj struktury zgodnej z adapter.xsd!
+            </task-to-fulfill>
+            
+            <executor>claude-sonnet</executor>
+            
+            <input>
+                <source name="requirements-analysis" stage="analyzing_requirements">
+                    <description>Analiza wymagań z poprzedniego etapu</description>
+                </source>
+                <source name="xsd-schema" stage="initial">
+                    <description>Schemat XSD - struktura musi być zgodna</description>
+                </source>
+            </input>
+            
+            <output>
+                <instructions>
+                    Wygeneruj szczegółowy projekt w formacie:
+                    
+                    ## Projekt Pipeline
+                    
+                    ### Stage 1: [name]
+                    - task-type: [type]
+                    - executor: [model]
+                    - task-to-fulfill: [szczegółowy opis]
+                    - inputs: [lista]
+                    - completion: [metoda]
+                    - next: [routing]
+                    
+                    ### Stage 2: [name]
+                    ...
+                    
+                    ### Output Config
+                    - save-location: [path]
+                    - file-extension: [ext]
+                </instructions>
+            </output>
+            
+            <next-stage>
+                <routing>Po zaprojektowaniu → generating_xml</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 4: Generating XML -->
+        <stage id="4" name="generating_xml">
+            <allowed-task-types>
+                <type>generation</type>
+                <type>coding</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>generation</task-type>
+            
+            <task-to-fulfill>
+                Wygeneruj kompletny plik XML adaptera:
+                
+                1. Użyj struktury z projektu pipeline
+                2. Zachowaj pełną zgodność z adapter.xsd
+                3. Dodaj komentarze XML opisujące każdy stage
+                4. Wypełnij wszystkie wymagane elementy
+                5. Dodaj sensowne wartości domyślne
+                
+                WAŻNE:
+                - Plik musi być poprawnym XML
+                - Musi przejść walidację XSD
+                - Skopiuj strukturę z article-with-audit.adapter.xml
+            </task-to-fulfill>
+            
+            <executor>gpt-4o</executor>
+            
+            <input>
+                <source name="pipeline-design" stage="designing_pipeline">
+                    <description>Szczegółowy projekt pipeline'u</description>
+                </source>
+                <source name="reference-adapter" stage="initial">
+                    <description>Wzorzec struktury XML</description>
+                </source>
+            </input>
+            
+            <output>
+                <instructions>
+                    Wygeneruj KOMPLETNY plik XML adaptera.
+                    
+                    Plik musi zaczynać się od:
+                    &lt;?xml version="1.0" encoding="UTF-8"?&gt;
+                    
+                    I zawierać pełną strukturę &lt;adapter&gt; z wszystkimi elementami.
+                    
+                    NIE dodawaj żadnego tekstu przed ani po XML.
+                    Output to TYLKO czysty XML.
+                </instructions>
+            </output>
+            
+            <completion-detection>
+                <method>pattern-match</method>
+                <fallback-signal>&lt;/adapter&gt;</fallback-signal>
+            </completion-detection>
+            
+            <next-stage>
+                <routing>Po wygenerowaniu → validating_xml</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 5: Validating XML -->
+        <stage id="5" name="validating_xml" is-audit="true">
+            <allowed-task-types>
+                <type>validation</type>
+                <type>audit</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>validation</task-type>
+            
+            <task-to-fulfill>
+                Zwaliduj wygenerowany XML:
+                
+                1. Sprawdź poprawność składni XML
+                2. Zweryfikuj zgodność ze schematem adapter.xsd
+                3. Sprawdź czy wszystkie wymagane elementy są obecne
+                4. Zweryfikuj spójność routing'u między stages
+                5. Sprawdź czy stages mają unikalne id i name
+                
+                Werdykt: PASS lub FAIL z listą błędów do poprawy.
+            </task-to-fulfill>
+            
+            <executor>gpt-4o</executor>
+            
+            <input>
+                <source name="generated-xml" stage="generating_xml">
+                    <description>Wygenerowany XML adaptera</description>
+                </source>
+                <source name="xsd-schema" stage="initial">
+                    <description>Schemat do walidacji</description>
+                </source>
+            </input>
+            
+            <forbidden-patterns>
+                <pattern reason="incomplete">TODO</pattern>
+                <pattern reason="incomplete">PLACEHOLDER</pattern>
+                <pattern reason="incomplete">[insert</pattern>
+                <pattern reason="invalid-xml">&lt;?xml version</pattern>
+                <pattern reason="truncated">...</pattern>
+            </forbidden-patterns>
+            
+            <audit-result>
+                <pass-criteria>
+                    XML jest poprawny składniowo AND
+                    Wszystkie wymagane elementy obecne AND
+                    Routing jest spójny AND
+                    Brak forbidden patterns
+                </pass-criteria>
+                <on-pass>
+                    <routing>→ completed</routing>
+                </on-pass>
+                <on-fail>
+                    <routing>→ generating_xml (popraw błędy)</routing>
+                    <feedback-to-stage>generating_xml</feedback-to-stage>
+                </on-fail>
+            </audit-result>
+            
+            <output>
+                <instructions>
+                    Zwróć raport walidacji:
+                    
+                    ## Validation Report
+                    
+                    ### XML Syntax
+                    [PASS/FAIL + szczegóły]
+                    
+                    ### Schema Compliance
+                    [PASS/FAIL + brakujące/błędne elementy]
+                    
+                    ### Routing Consistency
+                    [PASS/FAIL + problemy]
+                    
+                    ### Forbidden Patterns
+                    [Lista znalezionych lub "Brak"]
+                    
+                    ---
+                    
+                    ## Verdict: [PASS/FAIL]
+                    [Lista błędów do poprawy jeśli FAIL]
+                </instructions>
+            </output>
+        </stage>
+        
+        <!-- Stage 6: Completed (terminal) -->
+        <stage id="6" name="completed" is-terminal="true">
+            <task-to-fulfill>
+                Adapter XML został wygenerowany i zwalidowany pomyślnie.
+                Plik gotowy do użycia w resources/adapters/.
+            </task-to-fulfill>
+        </stage>
+        
+        <!-- Stage 7: Failed (terminal) -->
+        <stage id="7" name="failed" is-terminal="true">
+            <task-to-fulfill>
+                Generowanie adaptera nie powiodło się po przekroczeniu limitu prób.
+            </task-to-fulfill>
+        </stage>
+        
+    </pipeline>
+    
+    <!-- OUTPUT CONFIGURATION -->
+    <output-config>
+        <save-location>.adg-parallels/output/</save-location>
+        <file-extension>.adapter.xml</file-extension>
+        <filename-pattern>
+            <instructions>
+                Nazwa pliku: nazwa adaptera z task description.
+                Przykład: code-review.adapter.xml
+            </instructions>
+        </filename-pattern>
+    </output-config>
+    
+    <!-- RETRY CONFIGURATION -->
+    <retry-config>
+        <max-retries>2</max-retries>
+        <retry-on-fail>true</retry-on-fail>
+        <backoff-strategy>linear</backoff-strategy>
+    </retry-config>
+    
+</adapter>

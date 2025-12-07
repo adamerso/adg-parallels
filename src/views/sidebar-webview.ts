@@ -193,6 +193,28 @@ export class ADGSidebarWebviewProvider implements vscode.WebviewViewProvider {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
   <title>ADG-Parallels</title>
+  <script nonce="${nonce}">
+    (function() {
+      const vscode = acquireVsCodeApi();
+      
+      window.send = function(command) {
+        console.log('ADG Button clicked:', command);
+        vscode.postMessage({ command: command });
+      };
+      
+      // Also add event delegation for buttons
+      document.addEventListener('DOMContentLoaded', function() {
+        document.body.addEventListener('click', function(e) {
+          const btn = e.target.closest('button[data-cmd]');
+          if (btn) {
+            const cmd = btn.getAttribute('data-cmd');
+            console.log('ADG Button (data-cmd):', cmd);
+            vscode.postMessage({ command: cmd });
+          }
+        });
+      });
+    })();
+  </script>
   <style>
     :root {
       --btn-height: clamp(36px, 8vh, 56px);
@@ -496,7 +518,7 @@ export class ADGSidebarWebviewProvider implements vscode.WebviewViewProvider {
     <!-- Main Switch -->
     <button 
       class="btn btn-switch ${this.state.isProcessingEnabled ? 'on' : 'off'}" 
-      onclick="send('toggleProcessing')"
+      data-cmd="toggleProcessing"
     >
       <span class="btn-icon">${this.state.isProcessingEnabled ? '✓' : '○'}</span>
       <span>Processing ${this.state.isProcessingEnabled ? 'ON' : 'OFF'}</span>
@@ -510,7 +532,7 @@ export class ADGSidebarWebviewProvider implements vscode.WebviewViewProvider {
     <!-- Dashboard Button -->
     <button 
       class="btn btn-primary ${!this.state.hasProject ? 'hidden' : ''}" 
-      onclick="send('openDashboard')"
+      data-cmd="openDashboard"
     >
       <span class="btn-icon">📊</span>
       <span>Open Progress Dashboard</span>
@@ -536,24 +558,16 @@ export class ADGSidebarWebviewProvider implements vscode.WebviewViewProvider {
     
     <!-- Footer -->
     <div class="footer">
-      <button class="btn btn-ghost" onclick="send('showHelp')">
+      <button class="btn btn-ghost" data-cmd="showHelp">
         <span>❓</span>
         <span>Help</span>
       </button>
-      <button class="btn btn-ghost" onclick="send('showAbout')">
+      <button class="btn btn-ghost" data-cmd="showAbout">
         <span>ℹ️</span>
         <span>About</span>
       </button>
     </div>
   </div>
-  
-  <script nonce="${nonce}">
-    const vscode = acquireVsCodeApi();
-    
-    function send(command) {
-      vscode.postMessage({ command });
-    }
-  </script>
 </body>
 </html>`;
   }
@@ -562,7 +576,7 @@ export class ADGSidebarWebviewProvider implements vscode.WebviewViewProvider {
     if (!this.state.hasProject) {
       // No project - always show provision button
       return `
-        <button class="btn btn-success" onclick="send('provisionProject')">
+        <button class="btn btn-success" data-cmd="provisionProject">
           <span class="btn-icon">📁</span>
           <span>Provision New Project</span>
         </button>
@@ -623,7 +637,7 @@ export class ADGSidebarWebviewProvider implements vscode.WebviewViewProvider {
     // Stop / Processing Stopped
     if (this.state.processingStatus === 'processing') {
       buttons.push(`
-        <button class="btn btn-warning" onclick="send('stopProcessing')">
+        <button class="btn btn-warning" data-cmd="stopProcessing">
           <span class="btn-icon">⏸</span>
           <span>Stop Processing</span>
         </button>
@@ -636,7 +650,7 @@ export class ADGSidebarWebviewProvider implements vscode.WebviewViewProvider {
         </button>
       `);
       buttons.push(`
-        <button class="btn btn-success" onclick="send('resumeProcessing')">
+        <button class="btn btn-success" data-cmd="resumeProcessing">
           <span class="btn-icon">▶</span>
           <span>Resume Processing</span>
         </button>
@@ -646,7 +660,7 @@ export class ADGSidebarWebviewProvider implements vscode.WebviewViewProvider {
     // Kill button
     if (this.state.hasProject && this.state.processingStatus !== 'idle') {
       buttons.push(`
-        <button class="btn btn-danger" onclick="send('killProcessing')">
+        <button class="btn btn-danger" data-cmd="killProcessing">
           <span class="btn-icon">🛑</span>
           <span>KILL PROCESSING</span>
         </button>

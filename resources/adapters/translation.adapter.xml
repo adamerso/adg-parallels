@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    ADG-Parallels v0.3.0 - Pipeline Adapter
+    Translation with Review
+    
+    Pipeline: analyze source → translate → review → verify consistency → completed
+-->
+<adapter xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="../schemas/adapter.xsd">
+    
+    <!-- METADATA -->
+    <metadata>
+        <id>translation</id>
+        <name>Translation with Review</name>
+        <version>1.0.0</version>
+        <description>Translate content between languages with quality review and consistency checking</description>
+    </metadata>
+    
+    <!-- ADAPTER TYPE -->
+    <allowed-adapter-types>
+        <type>normal</type>
+        <type>meta</type>
+        <type>CUSTOM</type>
+    </allowed-adapter-types>
+    <adapter-type>normal</adapter-type>
+    
+    <!-- OUTPUT FORMAT -->
+    <allowed-output-formats>
+        <format>text</format>
+        <format>markdown</format>
+        <format>json</format>
+        <format>code</format>
+        <format>CUSTOM</format>
+    </allowed-output-formats>
+    <output-format>text</output-format>
+    
+    <!-- PIPELINE DEFINITION -->
+    <pipeline>
+        
+        <!-- Stage 1: Unassigned -->
+        <stage id="1" name="unassigned">
+            <task-to-fulfill>
+                Zadanie tłumaczenia czeka na przydzielenie.
+            </task-to-fulfill>
+            <next-stage>
+                <routing>Automatycznie → analyzing_source</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 2: Analyzing Source -->
+        <stage id="2" name="analyzing_source">
+            <allowed-task-types>
+                <type>analysis</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>analysis</task-type>
+            
+            <task-to-fulfill>
+                Przeanalizuj tekst źródłowy przed tłumaczeniem:
+                
+                1. Zidentyfikuj język źródłowy (jeśli nie podany)
+                2. Określ typ treści (techniczny, marketing, prawny, etc.)
+                3. Zidentyfikuj specjalistyczną terminologię
+                4. Znajdź elementy wymagające szczególnej uwagi:
+                   - Nazwy własne
+                   - Akronimy i skróty
+                   - Fragmenty kodu (jeśli kod)
+                   - Formatowanie do zachowania
+                5. Oceń styl i ton tekstu
+                
+                Wynik: analiza źródła z wytycznymi dla tłumaczenia.
+            </task-to-fulfill>
+            
+            <executor>gpt-4o</executor>
+            
+            <input>
+                <source name="source-text" stage="initial">
+                    <description>Tekst źródłowy do przetłumaczenia</description>
+                </source>
+                <source name="translation-params" stage="initial">
+                    <description>Parametry: języki, styl, terminologia</description>
+                </source>
+            </input>
+            
+            <output>
+                <instructions>
+                    ## Source Analysis
+                    
+                    ### Language Detection
+                    - Source language: [język]
+                    - Target language: [język docelowy]
+                    
+                    ### Content Type
+                    [Typ treści: technical/marketing/legal/general/code-comments/etc.]
+                    
+                    ### Style &amp; Tone
+                    [Opis stylu i tonu do zachowania]
+                    
+                    ### Special Elements
+                    #### Terminology to preserve/translate carefully:
+                    - [termin 1] → [sugerowane tłumaczenie lub "preserve"]
+                    - [termin 2] → ...
+                    
+                    #### Proper nouns (do NOT translate):
+                    - [nazwa 1]
+                    - [nazwa 2]
+                    
+                    #### Code/formatting to preserve:
+                    - [element 1]
+                    
+                    ### Translation Guidelines
+                    1. [Wytyczna 1]
+                    2. [Wytyczna 2]
+                </instructions>
+            </output>
+            
+            <next-stage>
+                <routing>Po analizie → during_translation</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 3: Translation -->
+        <stage id="3" name="during_translation">
+            <allowed-task-types>
+                <type>translation</type>
+                <type>localization</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>translation</task-type>
+            
+            <task-to-fulfill>
+                Przetłumacz tekst zgodnie z wytycznymi:
+                
+                1. Przetłumacz tekst na język docelowy
+                2. Zachowaj oryginalny sens i ton
+                3. Stosuj się do wytycznych z analizy
+                4. Zachowaj formatowanie (Markdown, kod, etc.)
+                5. NIE tłumacz elementów oznaczonych jako "preserve"
+                6. Dla komentarzy w kodzie - tłumacz TYLKO komentarze
+                
+                Styl tłumaczenia:
+                - Jeśli "literal" → dosłowne, wierne oryginałowi
+                - Jeśli "adaptive" → naturalne w języku docelowym
+                - Jeśli "creative" → swobodna adaptacja z zachowaniem sensu
+            </task-to-fulfill>
+            
+            <executor>gpt-4o</executor>
+            
+            <input>
+                <source name="source-text" stage="initial">
+                    <description>Oryginalny tekst do przetłumaczenia</description>
+                </source>
+                <source name="analysis" stage="analyzing_source">
+                    <description>Analiza i wytyczne tłumaczenia</description>
+                </source>
+            </input>
+            
+            <output>
+                <instructions>
+                    Wygeneruj przetłumaczony tekst.
+                    
+                    Zachowaj oryginalne formatowanie.
+                    NIE dodawaj żadnych komentarzy od tłumacza.
+                    NIE dodawaj porównania z oryginałem.
+                    
+                    Output to TYLKO przetłumaczony tekst.
+                </instructions>
+            </output>
+            
+            <completion-detection>
+                <method>natural-end</method>
+                <min-length>50</min-length>
+            </completion-detection>
+            
+            <next-stage>
+                <routing>Po tłumaczeniu → awaiting_review</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 4: Awaiting Review -->
+        <stage id="4" name="awaiting_review">
+            <task-to-fulfill>
+                Tłumaczenie oczekuje na review.
+            </task-to-fulfill>
+            <next-stage>
+                <routing>Automatycznie → during_review</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 5: Translation Review -->
+        <stage id="5" name="during_review" is-audit="true">
+            <allowed-task-types>
+                <type>review</type>
+                <type>audit</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>review</task-type>
+            
+            <task-to-fulfill>
+                Przeprowadź review tłumaczenia:
+                
+                ## Checklist
+                
+                ### 1. Accuracy
+                - Czy sens oryginału jest zachowany?
+                - Czy nie ma błędów znaczeniowych?
+                - Czy nic nie zostało pominięte?
+                
+                ### 2. Fluency
+                - Czy tłumaczenie brzmi naturalnie?
+                - Czy gramatyka jest poprawna?
+                - Czy styl jest odpowiedni?
+                
+                ### 3. Terminology
+                - Czy terminologia jest spójna?
+                - Czy specjalistyczne terminy są poprawne?
+                
+                ### 4. Formatting
+                - Czy formatowanie jest zachowane?
+                - Czy kod jest nienaruszony?
+                
+                Werdykt: PASS lub FAIL z listą poprawek.
+            </task-to-fulfill>
+            
+            <executor>claude-sonnet</executor>
+            
+            <input>
+                <source name="source-text" stage="initial">
+                    <description>Oryginalny tekst</description>
+                </source>
+                <source name="translated-text" stage="during_translation">
+                    <description>Przetłumaczony tekst</description>
+                </source>
+                <source name="guidelines" stage="analyzing_source">
+                    <description>Wytyczne tłumaczenia</description>
+                </source>
+            </input>
+            
+            <forbidden-patterns>
+                <pattern reason="untranslated">[tekst w języku źródłowym jeśli powinien być przetłumaczony]</pattern>
+                <pattern reason="placeholder">TODO</pattern>
+                <pattern reason="placeholder">[translate]</pattern>
+                <pattern reason="placeholder">[tłumaczenie]</pattern>
+                <pattern reason="machine-artifact">###</pattern>
+            </forbidden-patterns>
+            
+            <audit-result>
+                <pass-criteria>
+                    Accuracy score >= 8/10 AND
+                    Fluency score >= 7/10 AND
+                    Terminology consistent AND
+                    Formatting preserved
+                </pass-criteria>
+                <on-pass>
+                    <routing>→ completed</routing>
+                </on-pass>
+                <on-fail>
+                    <routing>→ during_translation (popraw)</routing>
+                    <feedback-to-stage>during_translation</feedback-to-stage>
+                </on-fail>
+            </audit-result>
+            
+            <output>
+                <instructions>
+                    ## Translation Review Report
+                    
+                    ### Accuracy: [X/10]
+                    [Komentarz - czy sens zachowany]
+                    
+                    ### Fluency: [X/10]
+                    [Komentarz - czy brzmi naturalnie]
+                    
+                    ### Terminology: [✅ Consistent / ⚠️ Issues]
+                    [Lista niespójności jeśli są]
+                    
+                    ### Formatting: [✅ Preserved / ⚠️ Issues]
+                    [Problemy z formatowaniem jeśli są]
+                    
+                    ### Corrections Needed
+                    1. [Poprawka 1]
+                    2. [Poprawka 2]
+                    ...
+                    (lub "None" jeśli brak)
+                    
+                    ---
+                    
+                    ## Verdict: [PASS/FAIL]
+                    [Uzasadnienie]
+                </instructions>
+            </output>
+        </stage>
+        
+        <!-- Stage 6: Completed -->
+        <stage id="6" name="completed" is-terminal="true">
+            <task-to-fulfill>
+                Tłumaczenie zostało ukończone i zweryfikowane.
+                Output dostępny w folderze outputs.
+            </task-to-fulfill>
+        </stage>
+        
+        <!-- Stage 7: Failed -->
+        <stage id="7" name="failed" is-terminal="true">
+            <task-to-fulfill>
+                Tłumaczenie nie powiodło się po przekroczeniu limitu prób.
+            </task-to-fulfill>
+        </stage>
+        
+    </pipeline>
+    
+    <!-- OUTPUT CONFIGURATION -->
+    <output-config>
+        <save-location>outputs/translations/</save-location>
+        <file-extension>.translated</file-extension>
+        <filename-pattern>
+            <instructions>
+                Nazwa pliku: task_ID + język docelowy + oryginalna nazwa.
+                Przykład: task_001_pl_readme.md
+                Dla kodu: task_001_pl_comments_main.ts
+            </instructions>
+        </filename-pattern>
+    </output-config>
+    
+    <!-- RETRY CONFIGURATION -->
+    <retry-config>
+        <max-retries>3</max-retries>
+        <retry-on-fail>true</retry-on-fail>
+        <backoff-strategy>linear</backoff-strategy>
+    </retry-config>
+    
+</adapter>
