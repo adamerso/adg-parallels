@@ -2,7 +2,7 @@
   "name": "adg-parallels",
   "displayName": "ADG-Parallels",
   "description": "AI Delegation Grid - Parallel task processing through multiple GitHub Copilot instances in a corporate hierarchy. Many Ejajkas, One Goal! 🥚",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "adg-parallels",
   "author": {
     "name": "ADG-Parallels Team"
@@ -38,11 +38,78 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "adg-parallels-sidebar",
+          "title": "ADG-Parallels",
+          "icon": "resources/icons/adg-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "adg-parallels-sidebar": [
+        {
+          "id": "adg-parallels.mainView",
+          "name": "Control Panel",
+          "type": "webview",
+          "contextualTitle": "ADG-Parallels"
+        }
+      ]
+    },
     "commands": [
       {
+        "command": "adg-parallels.toggleProcessing",
+        "title": "ADG: Toggle Processing",
+        "category": "ADG-Parallels",
+        "icon": "$(debug-start)"
+      },
+      {
+        "command": "adg-parallels.stopProcessing",
+        "title": "ADG: Stop Processing",
+        "category": "ADG-Parallels",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "adg-parallels.resumeProcessing",
+        "title": "ADG: Resume Processing",
+        "category": "ADG-Parallels",
+        "icon": "$(debug-continue)"
+      },
+      {
+        "command": "adg-parallels.killProcessing",
+        "title": "ADG: Kill Processing",
+        "category": "ADG-Parallels",
+        "icon": "$(stop-circle)"
+      },
+      {
+        "command": "adg-parallels.openProgressDashboard",
+        "title": "ADG: Open Progress Dashboard",
+        "category": "ADG-Parallels",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "adg-parallels.showHelp",
+        "title": "ADG: Show Help",
+        "category": "ADG-Parallels",
+        "icon": "$(question)"
+      },
+      {
+        "command": "adg-parallels.showAbout",
+        "title": "ADG: About ADG-Parallels",
+        "category": "ADG-Parallels",
+        "icon": "$(info)"
+      },
+      {
         "command": "adg-parallels.provisionProject",
-        "title": "ADG: Provision New Project",
+        "title": "ADG: Provision New Project (Legacy)",
         "category": "ADG-Parallels"
+      },
+      {
+        "command": "adg-parallels.showProjectWizard",
+        "title": "ADG: New Project Wizard",
+        "category": "ADG-Parallels",
+        "icon": "$(add)"
       },
       {
         "command": "adg-parallels.startWorkers",
@@ -162,6 +229,7 @@
     "typescript": "^5.8.2"
   },
   "dependencies": {
+    "fast-xml-parser": "^4.5.1",
     "mustache": "^4.2.0"
   },
   "overrides": {

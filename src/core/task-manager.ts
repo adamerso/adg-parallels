@@ -3,6 +3,8 @@
  * 
  * Manages the task queue with atomic updates, locking, and race condition handling.
  * This is the heart of task coordination between workers.
+ * 
+ * v0.3.0: Added pipeline stage support for multi-stage task execution.
  */
 
 import * as path from 'path';
@@ -11,7 +13,10 @@ import {
   TaskStatus, 
   ProjectTasks, 
   ProjectConfig, 
-  TaskStats 
+  TaskStats,
+  PipelineTask,
+  PipelineAdapter,
+  StageHistoryEntry
 } from '../types';
 import { 
   readJson, 
@@ -21,15 +26,32 @@ import {
   pathExists 
 } from '../utils/file-operations';
 import { logger } from '../utils/logger';
+import { isClaimableStage, getNextWorkingStage } from './pipeline-engine';
 
 /**
  * Task Manager class for handling task queue operations
  */
 export class TaskManager {
   private tasksFilePath: string;
+  private adapter?: PipelineAdapter;
 
-  constructor(tasksFilePath: string) {
+  constructor(tasksFilePath: string, adapter?: PipelineAdapter) {
     this.tasksFilePath = tasksFilePath;
+    this.adapter = adapter;
+  }
+
+  /**
+   * Set the adapter for pipeline operations
+   */
+  setAdapter(adapter: PipelineAdapter): void {
+    this.adapter = adapter;
+  }
+
+  /**
+   * Get the current adapter
+   */
+  getAdapter(): PipelineAdapter | undefined {
+    return this.adapter;
   }
 
   /**
@@ -480,6 +502,260 @@ export class TaskManager {
     return subtasks
       .filter(t => t.outputFile)
       .map(t => t.outputFile as string);
+  }
+
+  // ===========================================================================
+  // PIPELINE STAGE OPERATIONS (v0.3.0)
+  // ===========================================================================
+
+  /**
+   * Get a pipeline task by ID (with stage information)
+   */
+  async getPipelineTask(taskId: number): Promise<PipelineTask | null> {
+    const task = await this.getTask(taskId);
+    if (!task) {
+      return null;
+    }
+    
+    // Convert to PipelineTask format
+    return {
+      ...task,
+      currentStageId: (task as any).currentStageId ?? '1',
+      stageHistory: (task as any).stageHistory ?? [],
+      stageOutputs: (task as any).stageOutputs ?? {},
+      auditFeedback: (task as any).auditFeedback,
+    };
+  }
+
+  /**
+   * Find and claim the next available claimable stage for a task
+   * Returns the task with claimed stage or null if none available
+   */
+  async claimNextStage(workerId: string): Promise<PipelineTask | null> {
+    if (!this.adapter) {
+      logger.error('No adapter set, cannot claim stage');
+      return null;
+    }
+
+    return await withLock(this.tasksFilePath, async () => {
+      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      if (!data) {
+        logger.error('Could not load tasks file');
+        return null;
+      }
+
+      // Find a task with a claimable stage
+      for (const task of data.tasks) {
+        const pipelineTask = task as unknown as PipelineTask;
+        const currentStageId = pipelineTask.currentStageId ?? '1';
+        
+        // Skip if already assigned to another worker at this stage
+        if (task.assignedWorker && task.assignedWorker !== workerId) {
+          continue;
+        }
+        
+        // Check if current stage is claimable (working stage)
+        // Note: this.adapter is checked at function start
+        if (isClaimableStage(this.adapter!, currentStageId)) {
+          // Claim the task at this stage
+          task.status = 'processing';
+          task.assignedWorker = workerId;
+          task.startedAt = new Date().toISOString();
+          
+          // Initialize stage history if needed
+          if (!pipelineTask.stageHistory) {
+            (task as any).stageHistory = [];
+          }
+          
+          // Add to stage history
+          const stage = this.adapter!.pipeline.find(s => s.id === currentStageId);
+          (task as any).stageHistory.push({
+            stageId: currentStageId,
+            stageName: stage?.name ?? 'unknown',
+            workerId: workerId,
+            startedAt: new Date().toISOString(),
+          });
+
+          if (!this.saveSync(data)) {
+            logger.error('Failed to save stage claim');
+            return null;
+          }
+
+          logger.info(`Stage ${currentStageId} of task ${task.id} claimed by ${workerId}`, { 
+            title: task.title, 
+            stageName: stage?.name 
+          });
+
+          return {
+            ...task,
+            currentStageId,
+            stageHistory: (task as any).stageHistory ?? [],
+            stageOutputs: (task as any).stageOutputs ?? {},
+          } as PipelineTask;
+        }
+      }
+
+      logger.info('No claimable stages available');
+      return null;
+    });
+  }
+
+  /**
+   * Update task to the next stage after completing current stage
+   */
+  async advanceToNextStage(
+    taskId: number,
+    workerId: string,
+    nextStageId: string,
+    stageOutput?: string
+  ): Promise<boolean> {
+    if (!this.adapter) {
+      logger.error('No adapter set, cannot advance stage');
+      return false;
+    }
+
+    return await withLock(this.tasksFilePath, () => {
+      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      if (!data) {
+        return false;
+      }
+
+      const task = data.tasks.find(t => t.id === taskId);
+      if (!task) {
+        logger.error(`Task ${taskId} not found`);
+        return false;
+      }
+
+      // Verify ownership
+      if (task.assignedWorker !== workerId) {
+        logger.error(`Task ${taskId} not assigned to ${workerId}`);
+        return false;
+      }
+
+      const pipelineTask = task as unknown as PipelineTask;
+      const previousStageId = pipelineTask.currentStageId ?? '1';
+
+      // Update stage history with completion
+      const stageHistory = (task as any).stageHistory as StageHistoryEntry[] ?? [];
+      const lastEntry = stageHistory[stageHistory.length - 1];
+      if (lastEntry && lastEntry.stageId === previousStageId) {
+        lastEntry.completedAt = new Date().toISOString();
+        if (lastEntry.startedAt) {
+          lastEntry.durationMs = Date.now() - new Date(lastEntry.startedAt).getTime();
+        }
+      }
+      (task as any).stageHistory = stageHistory;
+
+      // Save stage output
+      if (stageOutput) {
+        const stageOutputs = (task as any).stageOutputs ?? {};
+        stageOutputs[previousStageId] = stageOutput;
+        (task as any).stageOutputs = stageOutputs;
+      }
+
+      // Update to next stage
+      (task as any).currentStageId = nextStageId;
+
+      // Check if next stage is terminal
+      const nextStage = this.adapter!.pipeline.find(s => s.id === nextStageId);
+      if (nextStage?.isTerminal) {
+        task.status = nextStage.name === 'completed' ? 'task_completed' : 'audit_failed';
+        task.completedAt = new Date().toISOString();
+        task.assignedWorker = undefined;
+        logger.info(`Task ${taskId} reached terminal stage: ${nextStage.name}`);
+      } else {
+        // Check if next stage is claimable or wait stage
+        if (isClaimableStage(this.adapter!, nextStageId)) {
+          // Worker can continue
+          logger.info(`Task ${taskId} advanced to working stage ${nextStageId}`);
+        } else {
+          // Release task for other workers or automatic transition
+          task.status = 'pending';
+          task.assignedWorker = undefined;
+          logger.info(`Task ${taskId} in wait stage ${nextStageId}, released for next worker`);
+        }
+      }
+
+      return this.saveSync(data);
+    }) ?? false;
+  }
+
+  /**
+   * Get all tasks at a specific stage
+   */
+  async getTasksAtStage(stageId: string): Promise<PipelineTask[]> {
+    const tasks = await this.getAllTasks();
+    return tasks
+      .filter(t => (t as any).currentStageId === stageId)
+      .map(t => ({
+        ...t,
+        currentStageId: (t as any).currentStageId ?? '1',
+        stageHistory: (t as any).stageHistory ?? [],
+        stageOutputs: (t as any).stageOutputs ?? {},
+      })) as PipelineTask[];
+  }
+
+  /**
+   * Get stage output from a task
+   */
+  async getStageOutput(taskId: number, stageId: string): Promise<string | null> {
+    const task = await this.getTask(taskId);
+    if (!task) {
+      return null;
+    }
+    const stageOutputs = (task as any).stageOutputs ?? {};
+    return stageOutputs[stageId] ?? null;
+  }
+
+  /**
+   * Set audit feedback for a task (used when audit fails)
+   */
+  async setAuditFeedback(
+    taskId: number, 
+    feedback: string, 
+    restartStageId: string
+  ): Promise<boolean> {
+    return await withLock(this.tasksFilePath, () => {
+      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      if (!data) {
+        return false;
+      }
+
+      const task = data.tasks.find(t => t.id === taskId);
+      if (!task) {
+        return false;
+      }
+
+      // Set audit feedback for next iteration
+      (task as any).auditFeedback = feedback;
+      (task as any).currentStageId = restartStageId;
+      task.status = 'pending';
+      task.assignedWorker = undefined;
+      task.retryCount++;
+
+      logger.info(`Task ${taskId} audit failed, restarting from stage ${restartStageId}`);
+      return this.saveSync(data);
+    }) ?? false;
+  }
+
+  /**
+   * Clear audit feedback (when task is picked up for retry)
+   */
+  async clearAuditFeedback(taskId: number): Promise<boolean> {
+    return await withLock(this.tasksFilePath, () => {
+      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      if (!data) {
+        return false;
+      }
+
+      const task = data.tasks.find(t => t.id === taskId);
+      if (!task) {
+        return false;
+      }
+
+      delete (task as any).auditFeedback;
+      return this.saveSync(data);
+    }) ?? false;
   }
 
   /**

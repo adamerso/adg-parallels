@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    ADG-Parallels v0.3.0 - Finished Flags Schema
+    Validates finished.xml structure for task completion flags
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    
+    <!-- ROOT ELEMENT -->
+    <xs:element name="finished">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="task" type="FinishedTaskType" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    
+    <!-- FINISHED TASK -->
+    <xs:complexType name="FinishedTaskType">
+        <xs:sequence>
+            <xs:element name="completed-at" type="xs:dateTime"/>
+            <xs:element name="worker-id" type="xs:string"/>
+            <xs:element name="final-stage" type="xs:string"/>
+            <xs:element name="output-file" type="xs:string" minOccurs="0"/>
+            <xs:element name="total-duration-ms" type="xs:integer" minOccurs="0"/>
+            <xs:element name="stages-count" type="xs:integer" minOccurs="0"/>
+        </xs:sequence>
+        <xs:attribute name="id" type="xs:string" use="required"/>
+        <xs:attribute name="status" type="FinalStatusType" use="required"/>
+    </xs:complexType>
+    
+    <!-- FINAL STATUS -->
+    <xs:simpleType name="FinalStatusType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="success"/>
+            <xs:enumeration value="failed"/>
+            <xs:enumeration value="cancelled"/>
+        </xs:restriction>
+    </xs:simpleType>
+    
+</xs:schema>

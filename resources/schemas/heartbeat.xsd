@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    ADG-Parallels v0.3.0 - Heartbeat Schema
+    Validates worker heartbeat files
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    
+    <!-- ROOT ELEMENT -->
+    <xs:element name="heartbeat">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="worker-id" type="xs:string"/>
+                <xs:element name="timestamp" type="xs:dateTime"/>
+                <xs:element name="status" type="WorkerStatusType"/>
+                <xs:element name="current-task" type="CurrentTaskType" minOccurs="0"/>
+                <xs:element name="stats" type="WorkerStatsType" minOccurs="0"/>
+                <xs:element name="system-info" type="SystemInfoType" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    
+    <!-- WORKER STATUS -->
+    <xs:simpleType name="WorkerStatusType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="idle"/>
+            <xs:enumeration value="working"/>
+            <xs:enumeration value="paused"/>
+            <xs:enumeration value="error"/>
+            <xs:enumeration value="shutting-down"/>
+        </xs:restriction>
+    </xs:simpleType>
+    
+    <!-- CURRENT TASK -->
+    <xs:complexType name="CurrentTaskType">
+        <xs:sequence>
+            <xs:element name="task-id" type="xs:string"/>
+            <xs:element name="stage-id" type="xs:string"/>
+            <xs:element name="stage-name" type="xs:string"/>
+            <xs:element name="started-at" type="xs:dateTime"/>
+            <xs:element name="progress" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- WORKER STATS -->
+    <xs:complexType name="WorkerStatsType">
+        <xs:sequence>
+            <xs:element name="tasks-completed" type="xs:integer"/>
+            <xs:element name="stages-processed" type="xs:integer"/>
+            <xs:element name="uptime-seconds" type="xs:integer"/>
+            <xs:element name="avg-stage-duration-ms" type="xs:integer" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- SYSTEM INFO -->
+    <xs:complexType name="SystemInfoType">
+        <xs:sequence>
+            <xs:element name="extension-version" type="xs:string"/>
+            <xs:element name="vscode-version" type="xs:string" minOccurs="0"/>
+            <xs:element name="os" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+</xs:schema>

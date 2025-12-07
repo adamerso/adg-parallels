@@ -2,7 +2,7 @@
  * ADG-Parallels Extension Entry Point
  * 
  * Main activation and deactivation handlers for the VS Code extension.
- * Manages role detection, status bar, and command registration.
+ * Manages role detection, status bar, sidebar UI, and command registration.
  */
 
 import * as vscode from 'vscode';
@@ -17,6 +17,9 @@ import {
   createWorkerLifecycle 
 } from './core/worker-lifecycle';
 import { registerCommands } from './commands';
+import { registerSidebarCommands } from './commands/sidebar-commands';
+import { createSidebarProvider, getSidebarProvider } from './views/sidebar-webview';
+import { showProjectWizard } from './views/wizard-provider';
 import { WorkerConfig } from './types';
 
 // =============================================================================
@@ -40,6 +43,23 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Register commands
   registerCommands(context);
+  
+  // Register sidebar commands
+  registerSidebarCommands(context);
+  
+  // Register project wizard command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('adg-parallels.showProjectWizard', () => {
+      showProjectWizard(context);
+    })
+  );
+  
+  // Create and register sidebar webview provider
+  const sidebarProvider = createSidebarProvider(context);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider('adg-parallels.mainView', sidebarProvider)
+  );
+  logger.info('Sidebar webview registered');
 
   // Create status bar item
   statusBarItem = vscode.window.createStatusBarItem(
@@ -86,6 +106,20 @@ async function initializeRoleBasedFeatures(context: vscode.ExtensionContext): Pr
 
   // Update status bar
   updateStatusBar();
+  
+  // Update sidebar with detected role
+  const sidebar = getSidebarProvider();
+  if (sidebar) {
+    sidebar.detectProject();
+    
+    // Map role to sidebar role type
+    let sidebarRole: 'none' | 'manager' | 'teamleader' | 'worker' = 'none';
+    if (roleInfo.role === 'manager') sidebarRole = 'manager';
+    else if (roleInfo.role === 'teamlead') sidebarRole = 'teamleader';
+    else if (roleInfo.role === 'worker') sidebarRole = 'worker';
+    
+    sidebar.updateState({ currentRole: sidebarRole });
+  }
 
   // Dispose existing lifecycle manager
   if (lifecycleManager) {

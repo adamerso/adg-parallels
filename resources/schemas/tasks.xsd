@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    ADG-Parallels v0.3.0 - Tasks Schema
+    Validates tasks.xml file structure
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    
+    <!-- ROOT ELEMENT -->
+    <xs:element name="tasks">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="task" type="TaskType" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+            <xs:attribute name="adapter-id" type="xs:string" use="required"/>
+        </xs:complexType>
+    </xs:element>
+    
+    <!-- TASK -->
+    <xs:complexType name="TaskType">
+        <xs:sequence>
+            <xs:element name="title" type="xs:string"/>
+            <xs:element name="description" type="xs:string" minOccurs="0"/>
+            <xs:element name="priority" type="PriorityType" minOccurs="0"/>
+            <xs:element name="current-stage" type="xs:string"/>
+            <xs:element name="stage-history" type="StageHistoryType" minOccurs="0"/>
+            <xs:element name="assigned-worker" type="xs:string" minOccurs="0"/>
+            <xs:element name="retry-count" type="xs:integer" minOccurs="0"/>
+            <xs:element name="max-retries" type="xs:integer" minOccurs="0"/>
+            <xs:element name="created-at" type="xs:dateTime"/>
+            <xs:element name="updated-at" type="xs:dateTime" minOccurs="0"/>
+            <xs:element name="outputs" type="OutputsType" minOccurs="0"/>
+            <xs:element name="metadata" type="TaskMetadataType" minOccurs="0"/>
+        </xs:sequence>
+        <xs:attribute name="id" type="xs:string" use="required"/>
+        <xs:attribute name="status" type="TaskStatusType" use="required"/>
+    </xs:complexType>
+    
+    <!-- PRIORITY -->
+    <xs:simpleType name="PriorityType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="low"/>
+            <xs:enumeration value="normal"/>
+            <xs:enumeration value="high"/>
+            <xs:enumeration value="critical"/>
+        </xs:restriction>
+    </xs:simpleType>
+    
+    <!-- TASK STATUS -->
+    <xs:simpleType name="TaskStatusType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="pending"/>
+            <xs:enumeration value="in-progress"/>
+            <xs:enumeration value="waiting"/>
+            <xs:enumeration value="completed"/>
+            <xs:enumeration value="failed"/>
+        </xs:restriction>
+    </xs:simpleType>
+    
+    <!-- STAGE HISTORY -->
+    <xs:complexType name="StageHistoryType">
+        <xs:sequence>
+            <xs:element name="entry" type="StageHistoryEntryType" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <xs:complexType name="StageHistoryEntryType">
+        <xs:sequence>
+            <xs:element name="worker-id" type="xs:string" minOccurs="0"/>
+            <xs:element name="started-at" type="xs:dateTime" minOccurs="0"/>
+            <xs:element name="completed-at" type="xs:dateTime" minOccurs="0"/>
+            <xs:element name="duration-ms" type="xs:integer" minOccurs="0"/>
+        </xs:sequence>
+        <xs:attribute name="stage-id" type="xs:string" use="required"/>
+        <xs:attribute name="stage-name" type="xs:string" use="required"/>
+    </xs:complexType>
+    
+    <!-- OUTPUTS -->
+    <xs:complexType name="OutputsType">
+        <xs:sequence>
+            <xs:element name="output" type="OutputEntryType" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <xs:complexType name="OutputEntryType">
+        <xs:simpleContent>
+            <xs:extension base="xs:string">
+                <xs:attribute name="stage" type="xs:string" use="required"/>
+                <xs:attribute name="mime-type" type="xs:string" default="text/plain"/>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+    
+    <!-- TASK METADATA -->
+    <xs:complexType name="TaskMetadataType">
+        <xs:sequence>
+            <xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+</xs:schema>

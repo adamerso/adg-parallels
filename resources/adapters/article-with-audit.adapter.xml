@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    ADG-Parallels v0.3.0 - Pipeline Adapter
+    Article Generation with Audit
+    
+    This adapter defines a complete multi-stage workflow:
+    1. unassigned → 2. during_article_writing → 3. awaiting_proofreading →
+    4. during_proofreading → 5. awaiting_audit → 6. during_audit →
+    7. completed OR back to stage 2 on fail
+-->
+<adapter xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="../schemas/adapter.xsd">
+    
+    <!-- METADATA -->
+    <metadata>
+        <id>article-with-audit</id>
+        <name>Article Generation with Audit</name>
+        <version>1.0.0</version>
+        <description>Full pipeline: article writing → proofreading → QA audit</description>
+    </metadata>
+    
+    <!-- ADAPTER TYPE -->
+    <allowed-adapter-types>
+        <type>normal</type>
+        <type>meta</type>
+        <type>audit</type>
+        <type>CUSTOM</type>
+    </allowed-adapter-types>
+    <adapter-type>normal</adapter-type>
+    
+    <!-- OUTPUT FORMAT -->
+    <allowed-output-formats>
+        <format>markdown</format>
+        <format>json</format>
+        <format>text</format>
+        <format>html</format>
+        <format>CUSTOM</format>
+    </allowed-output-formats>
+    <output-format>markdown</output-format>
+    
+    <!-- PIPELINE DEFINITION -->
+    <pipeline>
+        
+        <!-- Stage 1: Unassigned (initial) -->
+        <stage id="1" name="unassigned">
+            <task-to-fulfill>
+                Zadanie czeka na przydzielenie do wolnego workera.
+                Extension automatycznie przydziela do pierwszego dostępnego workera.
+            </task-to-fulfill>
+            <next-stage>
+                <routing>Automatycznie → during_article_writing</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 2: Article Writing -->
+        <stage id="2" name="during_article_writing">
+            <allowed-task-types>
+                <type>generation</type>
+                <type>transformation</type>
+                <type>research</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>generation</task-type>
+            
+            <task-to-fulfill>
+                Napisz artykuł na temat określony w tytule i opisie zadania.
+                
+                Wymagania:
+                - Artykuł powinien być wyczerpujący i dobrze ustrukturyzowany
+                - Zawierać nagłówki, podsekcje, listy punktowane
+                - Minimum 500 słów
+                - Użyj formatowania Markdown
+                - Bądź profesjonalny, ale przystępny
+                - Podaj przykłady gdzie to ma sens
+            </task-to-fulfill>
+            
+            <executor>gpt-4o</executor>
+            
+            <input>
+                <source name="task-definition" stage="initial">
+                    <description>Tytuł i opis zadania z tasks.xml</description>
+                </source>
+                <source name="project-context" stage="initial">
+                    <description>Kontekst projektu jeśli dostępny</description>
+                </source>
+            </input>
+            
+            <output>
+                <instructions>
+                    Wygeneruj kompletny artykuł w formacie Markdown.
+                    Użyj nagłówków: # dla tytułu, ## dla sekcji, ### dla podsekcji.
+                    Na końcu artykułu NIE dodawaj żadnych sygnałów zakończenia.
+                </instructions>
+            </output>
+            
+            <completion-detection>
+                <method>natural-end</method>
+                <min-length>500</min-length>
+                <fallback-signal>---END---</fallback-signal>
+            </completion-detection>
+            
+            <next-stage>
+                <routing>Po zakończeniu generowania → awaiting_proofreading</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 3: Awaiting Proofreading -->
+        <stage id="3" name="awaiting_proofreading">
+            <task-to-fulfill>
+                Artykuł oczekuje na przydzielenie do prooreadera.
+                Status pośredni między generowaniem a korektą.
+            </task-to-fulfill>
+            <next-stage>
+                <routing>Automatycznie → during_proofreading</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 4: Proofreading -->
+        <stage id="4" name="during_proofreading">
+            <allowed-task-types>
+                <type>review</type>
+                <type>editing</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>editing</task-type>
+            
+            <task-to-fulfill>
+                Dokonaj korekty artykułu:
+                
+                1. Popraw błędy gramatyczne i stylistyczne
+                2. Ulepsz strukturę zdań tam gdzie to potrzebne
+                3. Sprawdź spójność terminologii
+                4. Zachowaj oryginalny sens i ton
+                5. Usuń powtórzenia i nadmiarowe słowa
+                
+                NIE zmieniaj struktury artykułu ani głównych tez.
+            </task-to-fulfill>
+            
+            <executor>claude-sonnet</executor>
+            
+            <input>
+                <source name="draft-article" stage="during_article_writing">
+                    <description>Wygenerowany artykuł do korekty</description>
+                </source>
+            </input>
+            
+            <output>
+                <instructions>
+                    Zwróć poprawiony artykuł w całości (kompletny tekst).
+                    Na początku możesz dodać krótkie podsumowanie zmian w bloku komentarza:
+                    &lt;!-- Zmiany: ... --&gt;
+                </instructions>
+            </output>
+            
+            <next-stage>
+                <routing>Po zakończeniu → awaiting_audit</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 5: Awaiting Audit -->
+        <stage id="5" name="awaiting_audit">
+            <task-to-fulfill>
+                Poprawiony artykuł oczekuje na audyt jakości.
+            </task-to-fulfill>
+            <next-stage>
+                <routing>Automatycznie → during_audit</routing>
+            </next-stage>
+        </stage>
+        
+        <!-- Stage 6: Quality Audit -->
+        <stage id="6" name="during_audit" is-audit="true">
+            <allowed-task-types>
+                <type>audit</type>
+                <type>validation</type>
+                <type>CUSTOM</type>
+            </allowed-task-types>
+            <task-type>audit</task-type>
+            
+            <task-to-fulfill>
+                Przeprowadź audyt jakości artykułu:
+                
+                1. Sprawdź zgodność z oryginalnym briefem (tytuł i opis)
+                2. Oceń jakość merytoryczną w skali 1-10
+                3. Oceń jakość językową w skali 1-10
+                4. Sprawdź czy nie ma zabronionych wzorców (placeholder'y, AI disclosure)
+                5. Wydaj werdykt: PASS lub FAIL z uzasadnieniem
+                
+                Werdykt PASS wymaga:
+                - Ocena merytoryczna >= 7
+                - Ocena językowa >= 7
+                - Brak zabronionych wzorców
+            </task-to-fulfill>
+            
+            <executor>gpt-4o</executor>
+            
+            <input>
+                <source name="original-brief" stage="initial">
+                    <description>Oryginalny tytuł i opis zadania</description>
+                </source>
+                <source name="final-article" stage="during_proofreading">
+                    <description>Poprawiony artykuł do audytu</description>
+                </source>
+            </input>
+            
+            <forbidden-patterns>
+                <pattern reason="placeholder">Lorem ipsum</pattern>
+                <pattern reason="placeholder">TODO</pattern>
+                <pattern reason="placeholder">PLACEHOLDER</pattern>
+                <pattern reason="incomplete">[do uzupełnienia]</pattern>
+                <pattern reason="incomplete">[insert</pattern>
+                <pattern reason="ai-disclosure">As an AI</pattern>
+                <pattern reason="ai-disclosure">I'm just an AI</pattern>
+                <pattern reason="ai-disclosure">As a language model</pattern>
+            </forbidden-patterns>
+            
+            <audit-result>
+                <pass-criteria>
+                    Ocena merytoryczna >= 7 AND
+                    Ocena językowa >= 7 AND
+                    Brak zabronionych wzorców
+                </pass-criteria>
+                <on-pass>
+                    <routing>→ completed</routing>
+                </on-pass>
+                <on-fail>
+                    <routing>→ during_article_writing (restart)</routing>
+                    <feedback-to-stage>during_article_writing</feedback-to-stage>
+                </on-fail>
+            </audit-result>
+            
+            <output>
+                <instructions>
+                    Zwróć raport audytu w formacie:
+                    
+                    ## Audit Report
+                    
+                    ### Zgodność z briefem
+                    [TAK/NIE + komentarz]
+                    
+                    ### Oceny
+                    - Jakość merytoryczna: X/10
+                    - Jakość językowa: X/10
+                    
+                    ### Forbidden Patterns
+                    [lista znalezionych lub "Brak"]
+                    
+                    ### Uwagi
+                    [Opcjonalne szczegółowe uwagi]
+                    
+                    ---
+                    
+                    ## Verdict: [PASS/FAIL]
+                    [Uzasadnienie werdyktu]
+                </instructions>
+            </output>
+        </stage>
+        
+        <!-- Stage 7: Completed (terminal) -->
+        <stage id="7" name="completed" is-terminal="true">
+            <task-to-fulfill>
+                Zadanie zakończone pomyślnie. 
+                Output dostępny w określonej lokalizacji.
+            </task-to-fulfill>
+        </stage>
+        
+        <!-- Stage 8: Failed (terminal) -->
+        <stage id="8" name="failed" is-terminal="true">
+            <task-to-fulfill>
+                Zadanie zakończone niepowodzeniem po przekroczeniu limitu prób.
+            </task-to-fulfill>
+        </stage>
+        
+    </pipeline>
+    
+    <!-- OUTPUT CONFIGURATION -->
+    <output-config>
+        <save-location>outputs/</save-location>
+        <file-extension>.md</file-extension>
+        <filename-pattern>
+            <instructions>
+                Nazwa pliku: ID zadania + tytuł zamieniony na slug.
+                Przykład: task_001_jak-pisac-dobre-artykuly.md
+            </instructions>
+        </filename-pattern>
+    </output-config>
+    
+    <!-- RETRY CONFIGURATION -->
+    <retry-config>
+        <max-retries>3</max-retries>
+        <retry-on-fail>true</retry-on-fail>
+        <backoff-strategy>exponential</backoff-strategy>
+    </retry-config>
+    
+</adapter>

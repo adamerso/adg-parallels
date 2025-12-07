@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    ADG-Parallels v0.3.0 - Hierarchy Config Schema
+    Validates hierarchy-config.xml structure
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    
+    <!-- ROOT ELEMENT -->
+    <xs:element name="hierarchy-config">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="project" type="ProjectType"/>
+                <xs:element name="workers" type="WorkersConfigType"/>
+                <xs:element name="heartbeat" type="HeartbeatConfigType"/>
+                <xs:element name="timeouts" type="TimeoutsConfigType" minOccurs="0"/>
+                <xs:element name="model-preferences" type="ModelPreferencesType" minOccurs="0"/>
+            </xs:sequence>
+            <xs:attribute name="version" type="xs:string" use="required"/>
+        </xs:complexType>
+    </xs:element>
+    
+    <!-- PROJECT -->
+    <xs:complexType name="ProjectType">
+        <xs:sequence>
+            <xs:element name="name" type="xs:string"/>
+            <xs:element name="description" type="xs:string" minOccurs="0"/>
+            <xs:element name="adapter-id" type="xs:string"/>
+            <xs:element name="tasks-file" type="xs:string"/>
+            <xs:element name="output-dir" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- WORKERS CONFIG -->
+    <xs:complexType name="WorkersConfigType">
+        <xs:sequence>
+            <xs:element name="max-workers" type="xs:integer"/>
+            <xs:element name="worker-prefix" type="xs:string" minOccurs="0"/>
+            <xs:element name="auto-scale" type="xs:boolean" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- HEARTBEAT CONFIG -->
+    <xs:complexType name="HeartbeatConfigType">
+        <xs:sequence>
+            <xs:element name="interval-seconds" type="xs:integer"/>
+            <xs:element name="timeout-seconds" type="xs:integer"/>
+            <xs:element name="cleanup-stale" type="xs:boolean" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- TIMEOUTS CONFIG -->
+    <xs:complexType name="TimeoutsConfigType">
+        <xs:sequence>
+            <xs:element name="stage-execution-ms" type="xs:integer" minOccurs="0"/>
+            <xs:element name="model-response-ms" type="xs:integer" minOccurs="0"/>
+            <xs:element name="lock-acquisition-ms" type="xs:integer" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- MODEL PREFERENCES -->
+    <xs:complexType name="ModelPreferencesType">
+        <xs:sequence>
+            <xs:element name="preferred-family" type="xs:string" minOccurs="0"/>
+            <xs:element name="fallback-model" type="xs:string" minOccurs="0"/>
+            <xs:element name="model-override" type="ModelOverrideType" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <xs:complexType name="ModelOverrideType">
+        <xs:simpleContent>
+            <xs:extension base="xs:string">
+                <xs:attribute name="stage" type="xs:string" use="required"/>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+    
+</xs:schema>

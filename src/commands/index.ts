@@ -32,6 +32,7 @@ import {
 } from '../core/upward-reporting';
 import { ensureDir, pathExists, writeJson, readJson } from '../utils/file-operations';
 import { logger } from '../utils/logger';
+import { getSidebarProvider } from '../views/sidebar-webview';
 
 // =============================================================================
 // COMMAND: Provision Project
@@ -144,10 +145,34 @@ export async function provisionProject(): Promise<void> {
     tasks: [], // Will be populated from CSV or manual entry
   });
 
-  vscode.window.showInformationMessage(
-    `Project "${projectCodename}" provisioned! ` +
-    `Add tasks to .adg-parallels/management/project_${projectCodename}_adg-tasks.json`
-  );
+  // Update sidebar state
+  const sidebarProvider = getSidebarProvider();
+  if (sidebarProvider) {
+    const state = sidebarProvider.getState();
+    sidebarProvider.updateState({
+      hasProject: true,
+      projectStatus: state.isProcessingEnabled ? 'active' : 'suspended',
+      currentRole: 'manager',
+    });
+
+    // If processing is already ON, auto-start
+    if (state.isProcessingEnabled) {
+      vscode.window.showInformationMessage(
+        `🚀 Project "${projectCodename}" provisioned & auto-started! Processing is ON.`
+      );
+      // TODO: Trigger actual processing start here
+      sidebarProvider.updateState({ processingStatus: 'idle' });
+    } else {
+      vscode.window.showInformationMessage(
+        `Project "${projectCodename}" provisioned! Turn ON processing to start.`
+      );
+    }
+  } else {
+    vscode.window.showInformationMessage(
+      `Project "${projectCodename}" provisioned! ` +
+      `Add tasks to .adg-parallels/management/project_${projectCodename}_adg-tasks.json`
+    );
+  }
 
   // Open the tasks file
   const tasksFilePath = path.join(

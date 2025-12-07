@@ -3,6 +3,8 @@
  * 
  * Handles worker spawning, heartbeat monitoring, auto-restart, and disposal.
  * Uses VS Code windows and file-based communication.
+ * 
+ * v0.3.0: XML heartbeat format, 60s interval, stage tracking.
  */
 
 import * as vscode from 'vscode';
@@ -13,7 +15,9 @@ import {
   WorkerConfig, 
   Role,
   Task,
-  RolePaths
+  RolePaths,
+  HeartbeatXML,
+  PipelineTask
 } from '../types';
 import { 
   pathExists, 
@@ -24,14 +28,15 @@ import {
 } from '../utils/file-operations';
 import { logger } from '../utils/logger';
 import { TaskManager } from './task-manager';
+import { saveXML, loadXML, serializeToXML, parseXMLString } from './xml-loader';
 
 // =============================================================================
 // CONSTANTS
 // =============================================================================
 
-const HEARTBEAT_INTERVAL_MS = 30_000;  // 30 seconds
-const UNRESPONSIVE_THRESHOLD_MS = 90_000;  // 90 seconds
-const HEALTH_CHECK_INTERVAL_MS = 15_000;  // 15 seconds
+const HEARTBEAT_INTERVAL_MS = 60_000;  // 60 seconds (v0.3.0)
+const UNRESPONSIVE_THRESHOLD_MS = 180_000;  // 3 minutes
+const HEALTH_CHECK_INTERVAL_MS = 30_000;  // 30 seconds
 
 // =============================================================================
 // WORKER INFO
@@ -41,11 +46,11 @@ export interface WorkerInfo {
   workerId: string;
   workerDir: string;
   configPath: string;
-  heartbeatPath: string;
+  heartbeatPath: string;  // .xml in v0.3.0
   instructionsPath: string;
   outputDir: string;
   config?: WorkerConfig;
-  heartbeat?: WorkerHeartbeat;
+  heartbeat?: HeartbeatXML;  // XML format in v0.3.0
   isHealthy: boolean;
   lastHealthCheck: Date;
 }
@@ -133,40 +138,82 @@ export class WorkerLifecycleManager {
    */
   private async loadWorkerInfo(workerId: string, workerDir: string): Promise<WorkerInfo | null> {
     const configPath = path.join(workerDir, 'worker.json');
-    const heartbeatPath = path.join(workerDir, 'heartbeat.json');
+    // v0.3.0: Support both XML and JSON heartbeat, prefer XML
+    const heartbeatXmlPath = path.join(workerDir, 'heartbeat.xml');
+    const heartbeatJsonPath = path.join(workerDir, 'heartbeat.json');
+    const heartbeatPath = pathExists(heartbeatXmlPath) ? heartbeatXmlPath : heartbeatJsonPath;
     const instructionsPath = path.join(workerDir, 'instructions.md');
     const outputDir = path.join(workerDir, 'output');
 
     const config = pathExists(configPath) ? readJson<WorkerConfig>(configPath) : undefined;
-    const heartbeat = pathExists(heartbeatPath) ? readJson<WorkerHeartbeat>(heartbeatPath) : undefined;
+    
+    // v0.3.0: Load heartbeat from XML or fallback to JSON
+    let heartbeat: HeartbeatXML | undefined;
+    if (pathExists(heartbeatXmlPath)) {
+      heartbeat = await loadXML<HeartbeatXML>(heartbeatXmlPath) ?? undefined;
+    } else if (pathExists(heartbeatJsonPath)) {
+      // Convert JSON to XML format for compatibility
+      const jsonHeartbeat = readJson<WorkerHeartbeat>(heartbeatJsonPath);
+      if (jsonHeartbeat) {
+        heartbeat = this.convertJsonHeartbeatToXml(jsonHeartbeat);
+      }
+    }
 
     return {
       workerId,
       workerDir,
       configPath,
-      heartbeatPath,
+      heartbeatPath: heartbeatXmlPath,  // Always use XML path for new writes
       instructionsPath,
       outputDir,
       config: config ?? undefined,
-      heartbeat: heartbeat ?? undefined,
-      isHealthy: this.isHeartbeatHealthy(heartbeat ?? undefined),
+      heartbeat,
+      isHealthy: this.isHeartbeatHealthy(heartbeat),
       lastHealthCheck: new Date(),
+    };
+  }
+
+  /**
+   * Convert JSON heartbeat to XML format (for migration)
+   */
+  private convertJsonHeartbeatToXml(json: WorkerHeartbeat): HeartbeatXML {
+    // Map status - JSON 'unresponsive' or 'error' becomes 'idle' in XML since we track errors differently
+    let status: 'idle' | 'working' | 'paused' | 'error' | 'shutting-down' = 'idle';
+    if (json.status === 'working') {
+      status = 'working';
+    }
+    
+    return {
+      workerId: json.workerId,
+      timestamp: json.lastActivityTimestamp,
+      status,
+      currentTask: json.currentTask ? {
+        taskId: String(json.currentTask.id),
+        stageId: '1',  // Default to first stage for legacy tasks
+        stageName: 'unknown',
+        startedAt: json.currentTask.startedAt,
+      } : undefined,
+      stats: {
+        tasksCompleted: 0,
+        stagesProcessed: 0,
+        uptimeSeconds: 0,
+      },
     };
   }
 
   /**
    * Check if heartbeat indicates healthy worker
    */
-  private isHeartbeatHealthy(heartbeat?: WorkerHeartbeat): boolean {
+  private isHeartbeatHealthy(heartbeat?: HeartbeatXML): boolean {
     if (!heartbeat) {
       return false;
     }
 
-    const lastActivity = new Date(heartbeat.lastActivityTimestamp);
+    const lastActivity = new Date(heartbeat.timestamp);
     const now = new Date();
     const timeDiff = now.getTime() - lastActivity.getTime();
 
-    return timeDiff < UNRESPONSIVE_THRESHOLD_MS && heartbeat.status !== 'unresponsive';
+    return timeDiff < UNRESPONSIVE_THRESHOLD_MS && heartbeat.status !== 'error';
   }
 
   /**
@@ -211,15 +258,22 @@ export class WorkerLifecycleManager {
     const configPath = path.join(workerDir, 'worker.json');
     writeJson(configPath, workerConfig);
 
-    // Create initial heartbeat
-    const heartbeat: WorkerHeartbeat = {
+    // Create initial heartbeat (v0.3.0: XML format)
+    const heartbeat: HeartbeatXML = {
       workerId: id,
-      lastActivityTimestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString(),
       status: 'idle',
-      consecutiveFailures: 0,
+      stats: {
+        tasksCompleted: 0,
+        stagesProcessed: 0,
+        uptimeSeconds: 0,
+      },
+      systemInfo: {
+        extensionVersion: '0.3.0',
+      },
     };
-    const heartbeatPath = path.join(workerDir, 'heartbeat.json');
-    writeJson(heartbeatPath, heartbeat);
+    const heartbeatPath = path.join(workerDir, 'heartbeat.xml');
+    await saveXML(heartbeatPath, heartbeat, 'heartbeat');
 
     // Create worker instructions
     await this.generateWorkerInstructions(workerDir, workerConfig);
@@ -228,7 +282,7 @@ export class WorkerLifecycleManager {
       workerId: id,
       workerDir,
       configPath,
-      heartbeatPath,
+      heartbeatPath,  // Now .xml
       instructionsPath: path.join(workerDir, 'instructions.md'),
       outputDir: path.join(workerDir, 'output'),
       config: workerConfig,
@@ -273,18 +327,29 @@ You are an ADG-Parallels **Worker** (id: ${config.workerId}).
 
 ## Your Workspace
 - Config: \`worker.json\`
-- Heartbeat: \`heartbeat.json\`
+- Heartbeat: \`heartbeat.xml\` (v0.3.0)
 - Output: \`output/\`
 
-## Heartbeat Protocol
-Update \`heartbeat.json\` every 30 seconds with:
-\`\`\`json
-{
-  "workerId": "${config.workerId}",
-  "lastActivityTimestamp": "<current ISO timestamp>",
-  "status": "working",
-  "currentTask": { "id": <task_id>, "title": "<task_title>", "startedAt": "<timestamp>" }
-}
+## Heartbeat Protocol (v0.3.0)
+Update \`heartbeat.xml\` every 60 seconds with:
+\`\`\`xml
+<?xml version="1.0" encoding="UTF-8"?>
+<heartbeat>
+  <worker-id>${config.workerId}</worker-id>
+  <timestamp>2024-01-15T10:30:00.000Z</timestamp>
+  <status>working</status>
+  <current-task>
+    <task-id>1</task-id>
+    <stage-id>2</stage-id>
+    <stage-name>during_article_writing</stage-name>
+    <started-at>2024-01-15T10:25:00.000Z</started-at>
+  </current-task>
+  <stats>
+    <tasks-completed>5</tasks-completed>
+    <stages-processed>12</stages-processed>
+    <uptime-seconds>3600</uptime-seconds>
+  </stats>
+</heartbeat>
 \`\`\`
 
 ## Starting Work
@@ -367,16 +432,25 @@ Good luck, worker! 🚀
     for (const [id, worker] of this.workers) {
       // Check if worker has finished flag - means it completed normally, not crashed
       const finishedFlagPath = path.join(worker.workerDir, 'finished.flag');
-      if (pathExists(finishedFlagPath)) {
+      const finishedXmlPath = path.join(worker.workerDir, 'finished.xml');
+      if (pathExists(finishedFlagPath) || pathExists(finishedXmlPath)) {
         // Worker finished gracefully - mark as healthy and skip
         worker.isHealthy = true;
         logger.debug(`Worker ${id} has finished flag, skipping health check`);
         continue;
       }
 
-      // Reload heartbeat
-      if (pathExists(worker.heartbeatPath)) {
-        worker.heartbeat = readJson<WorkerHeartbeat>(worker.heartbeatPath) ?? undefined;
+      // v0.3.0: Reload heartbeat from XML or JSON
+      const heartbeatXmlPath = path.join(worker.workerDir, 'heartbeat.xml');
+      const heartbeatJsonPath = path.join(worker.workerDir, 'heartbeat.json');
+      
+      if (pathExists(heartbeatXmlPath)) {
+        worker.heartbeat = await loadXML<HeartbeatXML>(heartbeatXmlPath) ?? undefined;
+      } else if (pathExists(heartbeatJsonPath)) {
+        const jsonHeartbeat = readJson<WorkerHeartbeat>(heartbeatJsonPath);
+        if (jsonHeartbeat) {
+          worker.heartbeat = this.convertJsonHeartbeatToXml(jsonHeartbeat);
+        }
       }
 
       worker.isHealthy = this.isHeartbeatHealthy(worker.heartbeat);
@@ -415,7 +489,9 @@ Good luck, worker! 🚀
       return;
     }
 
-    worker.heartbeat.consecutiveFailures++;
+    // Track consecutive failures (stored in memory, not in XML)
+    const consecutiveFailures = ((worker as any)._consecutiveFailures ?? 0) + 1;
+    (worker as any)._consecutiveFailures = consecutiveFailures;
 
     // Release any claimed tasks back to queue
     const released = await this.taskManager.releaseWorkerTasks(worker.workerId);
@@ -423,21 +499,21 @@ Good luck, worker! 🚀
       logger.info(`Released ${released} tasks from unhealthy worker ${worker.workerId}`);
     }
 
-    // Update heartbeat to show unresponsive
-    worker.heartbeat.status = 'unresponsive';
-    writeJson(worker.heartbeatPath, worker.heartbeat);
+    // Update heartbeat to show error status
+    worker.heartbeat.status = 'error';
+    await saveXML(worker.heartbeatPath, worker.heartbeat, 'heartbeat');
 
     // Auto-restart after 3 consecutive failures
-    if (worker.heartbeat.consecutiveFailures >= 3) {
+    if (consecutiveFailures >= 3) {
       logger.warn(`Worker ${worker.workerId} failed 3+ times, attempting restart...`);
       
       // Try to respawn the worker
       const success = await this.spawnWorker(worker);
       if (success) {
         // Reset failure count on successful respawn
-        worker.heartbeat.consecutiveFailures = 0;
+        (worker as any)._consecutiveFailures = 0;
         worker.heartbeat.status = 'idle';
-        writeJson(worker.heartbeatPath, worker.heartbeat);
+        await saveXML(worker.heartbeatPath, worker.heartbeat, 'heartbeat');
         logger.info(`Worker ${worker.workerId} respawned successfully`);
         
         // Notify CEO via VS Code notification
@@ -496,12 +572,18 @@ Good luck, worker! 🚀
   }
 
   /**
-   * Update heartbeat file
+   * Update heartbeat file (v0.3.0: XML format with stage tracking)
    */
-  updateHeartbeat(
-    status?: 'idle' | 'working' | 'error',
-    currentTask?: { id: number; title: string; startedAt: string }
-  ): void {
+  async updateHeartbeat(
+    status?: 'idle' | 'working' | 'error' | 'paused' | 'shutting-down',
+    currentTask?: { 
+      taskId: string; 
+      stageId: string; 
+      stageName: string; 
+      startedAt: string;
+      progress?: string;
+    }
+  ): Promise<void> {
     if (!this.workerId) {
       return;
     }
@@ -511,18 +593,73 @@ Good luck, worker! 🚀
       '..', 
       'workers', 
       this.workerId, 
-      'heartbeat.json'
+      'heartbeat.xml'
     );
 
-    const heartbeat: WorkerHeartbeat = {
+    // Load existing stats if available
+    let stats = {
+      tasksCompleted: 0,
+      stagesProcessed: 0,
+      uptimeSeconds: 0,
+    };
+    
+    if (pathExists(heartbeatPath)) {
+      const existing = await loadXML<HeartbeatXML>(heartbeatPath);
+      if (existing?.stats) {
+        stats = existing.stats;
+      }
+    }
+
+    const heartbeat: HeartbeatXML = {
       workerId: this.workerId,
-      lastActivityTimestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString(),
       status: status || 'idle',
       currentTask,
-      consecutiveFailures: 0,
+      stats,
+      systemInfo: {
+        extensionVersion: '0.3.0',
+      },
     };
 
-    writeJson(heartbeatPath, heartbeat);
+    await saveXML(heartbeatPath, heartbeat, 'heartbeat');
+  }
+
+  /**
+   * Increment stats in heartbeat
+   */
+  async incrementHeartbeatStats(
+    tasksCompleted?: number,
+    stagesProcessed?: number
+  ): Promise<void> {
+    if (!this.workerId) {
+      return;
+    }
+
+    const heartbeatPath = path.join(
+      this.managementDir, 
+      '..', 
+      'workers', 
+      this.workerId, 
+      'heartbeat.xml'
+    );
+
+    const existing = await loadXML<HeartbeatXML>(heartbeatPath);
+    if (!existing) {
+      return;
+    }
+
+    if (!existing.stats) {
+      existing.stats = { tasksCompleted: 0, stagesProcessed: 0, uptimeSeconds: 0 };
+    }
+
+    if (tasksCompleted) {
+      existing.stats.tasksCompleted += tasksCompleted;
+    }
+    if (stagesProcessed) {
+      existing.stats.stagesProcessed += stagesProcessed;
+    }
+
+    await saveXML(heartbeatPath, existing, 'heartbeat');
   }
 
   /**
@@ -534,21 +671,43 @@ Good luck, worker! 🚀
   }
 
   /**
-   * Signal task start
+   * Signal task start (legacy - for compatibility)
    */
   signalTaskStart(task: Task): void {
     this.updateHeartbeat('working', {
-      id: task.id,
-      title: task.title,
+      taskId: String(task.id),
+      stageId: '1',
+      stageName: 'processing',
       startedAt: new Date().toISOString(),
     });
   }
 
   /**
+   * Signal stage start (v0.3.0 - with stage tracking)
+   */
+  signalStageStart(taskId: string, stageId: string, stageName: string): void {
+    this.updateHeartbeat('working', {
+      taskId,
+      stageId,
+      stageName,
+      startedAt: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Signal stage completion
+   */
+  async signalStageComplete(): Promise<void> {
+    await this.incrementHeartbeatStats(0, 1);
+    await this.updateHeartbeat('idle');
+  }
+
+  /**
    * Signal task completion
    */
-  signalTaskComplete(): void {
-    this.updateHeartbeat('idle');
+  async signalTaskComplete(): Promise<void> {
+    await this.incrementHeartbeatStats(1, 0);
+    await this.updateHeartbeat('idle');
   }
 }
 

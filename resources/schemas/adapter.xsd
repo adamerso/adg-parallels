@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    ADG-Parallels v0.3.0 - Adapter Schema
+    Validates pipeline adapter XML files
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    
+    <!-- ROOT ELEMENT -->
+    <xs:element name="adapter">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="metadata" type="MetadataType"/>
+                <xs:element name="allowed-adapter-types" type="AllowedAdapterTypesType" minOccurs="0"/>
+                <xs:element name="adapter-type" type="xs:string"/>
+                <xs:element name="allowed-output-formats" type="AllowedOutputFormatsType" minOccurs="0"/>
+                <xs:element name="output-format" type="xs:string"/>
+                <xs:element name="pipeline" type="PipelineType"/>
+                <xs:element name="output-config" type="OutputConfigType" minOccurs="0"/>
+                <xs:element name="retry-config" type="RetryConfigType" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    
+    <!-- METADATA -->
+    <xs:complexType name="MetadataType">
+        <xs:sequence>
+            <xs:element name="id" type="xs:string"/>
+            <xs:element name="name" type="xs:string"/>
+            <xs:element name="version" type="xs:string"/>
+            <xs:element name="description" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- ALLOWED ADAPTER TYPES -->
+    <xs:complexType name="AllowedAdapterTypesType">
+        <xs:sequence>
+            <xs:element name="type" type="xs:string" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- ALLOWED OUTPUT FORMATS -->
+    <xs:complexType name="AllowedOutputFormatsType">
+        <xs:sequence>
+            <xs:element name="format" type="xs:string" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- PIPELINE -->
+    <xs:complexType name="PipelineType">
+        <xs:sequence>
+            <xs:element name="stage" type="StageType" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- STAGE -->
+    <xs:complexType name="StageType">
+        <xs:sequence>
+            <xs:element name="allowed-task-types" type="AllowedTaskTypesType" minOccurs="0"/>
+            <xs:element name="task-type" type="xs:string" minOccurs="0"/>
+            <xs:element name="task-to-fulfill" type="xs:string"/>
+            <xs:element name="executor" type="xs:string" minOccurs="0"/>
+            <xs:element name="input" type="InputType" minOccurs="0"/>
+            <xs:element name="output" type="OutputType" minOccurs="0"/>
+            <xs:element name="completion-detection" type="CompletionDetectionType" minOccurs="0"/>
+            <xs:element name="forbidden-patterns" type="ForbiddenPatternsType" minOccurs="0"/>
+            <xs:element name="audit-result" type="AuditResultType" minOccurs="0"/>
+            <xs:element name="next-stage" type="NextStageType" minOccurs="0"/>
+        </xs:sequence>
+        <xs:attribute name="id" type="xs:string" use="required"/>
+        <xs:attribute name="name" type="xs:string" use="required"/>
+        <xs:attribute name="is-audit" type="xs:boolean" default="false"/>
+        <xs:attribute name="is-terminal" type="xs:boolean" default="false"/>
+    </xs:complexType>
+    
+    <!-- ALLOWED TASK TYPES -->
+    <xs:complexType name="AllowedTaskTypesType">
+        <xs:sequence>
+            <xs:element name="type" type="xs:string" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- INPUT -->
+    <xs:complexType name="InputType">
+        <xs:sequence>
+            <xs:element name="source" type="SourceType" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <xs:complexType name="SourceType">
+        <xs:sequence>
+            <xs:element name="description" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+        <xs:attribute name="name" type="xs:string" use="required"/>
+        <xs:attribute name="stage" type="xs:string" use="required"/>
+    </xs:complexType>
+    
+    <!-- OUTPUT -->
+    <xs:complexType name="OutputType">
+        <xs:sequence>
+            <xs:element name="instructions" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- COMPLETION DETECTION -->
+    <xs:complexType name="CompletionDetectionType">
+        <xs:sequence>
+            <xs:element name="method" type="xs:string"/>
+            <xs:element name="min-length" type="xs:integer" minOccurs="0"/>
+            <xs:element name="fallback-signal" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- FORBIDDEN PATTERNS -->
+    <xs:complexType name="ForbiddenPatternsType">
+        <xs:sequence>
+            <xs:element name="pattern" type="PatternType" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <xs:complexType name="PatternType">
+        <xs:simpleContent>
+            <xs:extension base="xs:string">
+                <xs:attribute name="reason" type="xs:string" use="required"/>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+    
+    <!-- AUDIT RESULT -->
+    <xs:complexType name="AuditResultType">
+        <xs:sequence>
+            <xs:element name="pass-criteria" type="xs:string"/>
+            <xs:element name="on-pass" type="AuditActionType"/>
+            <xs:element name="on-fail" type="AuditActionType"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <xs:complexType name="AuditActionType">
+        <xs:sequence>
+            <xs:element name="routing" type="xs:string"/>
+            <xs:element name="feedback-to-stage" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- NEXT STAGE -->
+    <xs:complexType name="NextStageType">
+        <xs:sequence>
+            <xs:element name="routing" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- OUTPUT CONFIG -->
+    <xs:complexType name="OutputConfigType">
+        <xs:sequence>
+            <xs:element name="save-location" type="xs:string"/>
+            <xs:element name="file-extension" type="xs:string"/>
+            <xs:element name="filename-pattern" type="FilenamePatternType" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <xs:complexType name="FilenamePatternType">
+        <xs:sequence>
+            <xs:element name="instructions" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- RETRY CONFIG -->
+    <xs:complexType name="RetryConfigType">
+        <xs:sequence>
+            <xs:element name="max-retries" type="xs:integer"/>
+            <xs:element name="retry-on-fail" type="xs:boolean"/>
+            <xs:element name="backoff-strategy" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+</xs:schema>

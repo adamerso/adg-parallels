@@ -2,14 +2,24 @@
 
 ## ✅ POC STATUS: COMPLETE & PRODUCTION-TESTED
 
-> **December 7, 2025** - v0.2.0 Released
+> **December 7, 2025** - v0.3.0 Released
 > 
-> **Capabilities demonstrated:**
+> **v0.3.0 Major Changes:**
+> - 🔄 **XML + XSD** - All config files migrated from JSON to validated XML
+> - 🔧 **Pipeline Adapters** - Adapters define complete multi-stage pipelines
+> - 🎯 **Descriptive Tags** - Human-readable instructions, not Mustache templates
+> - 🤖 **Per-Stage Executors** - Each stage specifies its own model (gpt-4o, claude-sonnet)
+> - 📊 **Allowed Lists + CUSTOM** - Extensible enums with always-available CUSTOM option
+> - 👔 **TeamLeader Role** - Full documentation and support
+> - 🎨 **Sidebar UI** - Activity Bar panel with responsive WebView controls
+> - 🧙 **Project Wizard** - Multi-step GUI wizard replacing CLI dialogs
+> 
+> **Capabilities demonstrated (v0.2.0):**
 > - Parallel workers executing tasks autonomously via VS Code LM API
 > - Multiple AI agents coordinated through shared task queue
 > - Task continuation ("continue") working - workers pick up new tasks after completion
 > - **Tested: 4 workers × 10 tasks = Reddit launch campaign generated in parallel!**
-> - Workers create `finished.flag` for graceful shutdown detection
+> - Workers create `finished.flag.xml` for graceful shutdown detection
 > - Health monitoring with auto-recovery (respawn crashed workers)
 > - Task audit system for quality verification
 > 
@@ -62,13 +72,13 @@ All running in parallel. All coordinated automatically. All using your existing 
 
 An extension that:
 1. **Automatically opens multiple VS Code windows** as "workers"
-2. **Coordinates tasks** through shared JSON files
+2. **Coordinates tasks** through shared XML files (validated with XSD)
 3. **Automatically starts and resumes Copilot** in each window
 4. **Tracks progress** and reports status to the "manager"
 5. **Supports hierarchy** - from simple workers to Team Leaders managing their own teams
-6. **Uses adapters** - plugin system for handling different task types
+6. **Uses pipeline adapters** - complete workflow definitions for different task types
 7. **Splits mega-tasks** - CEO says "write 100 articles", system organizes the work
-8. **Monitors health** - heartbeat, auto-restart, task reassignment
+8. **Monitors health** - heartbeat (60s configurable), auto-restart, task reassignment
 
 ---
 
@@ -83,27 +93,33 @@ An extension that:
 | 👨‍💼 **Team Leader** | Hybrid Ejajka - executes AND delegates | Claude Sonnet |
 | 👷 **Worker** | Ejajka executing specific tasks | GPT-4o / GPT-4o-mini |
 
-### File Structure
+### File Structure (v0.3.0)
 
 ```
 📁 Project/
 └── 📁 .adg-parallels/
     ├── 📁 management/           ← Manager files
-    │   ├── project_*_tasks.json ← Task list
-    │   ├── hierarchy-config.json← Hierarchy limits
+    │   ├── project_*_tasks.xml  ← Task list (XML)
+    │   ├── hierarchy-config.xml ← Hierarchy limits (XML)
     │   └── attachments/         ← Source materials
     │
     ├── 📁 worker/               ← Worker files
-    │   ├── worker-config.json   ← Configuration
-    │   ├── worker-start-prompt.md
-    │   ├── worker-continue-prompt.md
-    │   └── .heartbeat.json      ← Worker health status
+    │   ├── .heartbeat.xml       ← Worker health status (XML)
+    │   └── finished.flag.xml    ← Graceful exit signal (XML)
     │
-    ├── 📁 adapters/             ← Task adapter definitions
-    │   ├── article-generation.adapter.json
-    │   ├── translation.adapter.json
-    │   ├── code-audit.adapter.json
-    │   └── task-splitter.adapter.json
+    ├── 📁 adapters/             ← Pipeline adapter definitions (XML)
+    │   ├── article-with-audit.adapter.xml
+    │   ├── translation.adapter.xml
+    │   ├── code-audit.adapter.xml
+    │   └── task-splitter.adapter.xml
+    │
+    ├── 📁 schemas/              ← XSD validation schemas (NEW v0.3.0)
+    │   ├── tasks.xsd
+    │   ├── adapter.xsd
+    │   ├── hierarchy-config.xsd
+    │   └── heartbeat.xsd
+    │
+    ├── 📁 teamleaders/          ← TeamLeader workspaces (NEW)
     │
     └── 📁 jobs/
         └── 📁 worker_{N}/       ← Each worker's workspace
@@ -120,23 +136,49 @@ Neither?                           → CEO (main window)
 
 ---
 
-## 🔌 Adapter System (Task Adapters)
+## 🔌 Adapter System - Pipeline Paradigm (v0.3.0)
 
-Adapters are a plugin system for handling different task types:
+> **MAJOR CHANGE**: Adapters are no longer prompt templates!
+> They are **COMPLETE PIPELINE DEFINITIONS** - self-describing workflow specifications.
 
-| Adapter | Use Case |
-|---------|----------|
-| `article-generation` | Writing articles, posts, descriptions |
-| `translation` | Text translations |
-| `code-audit` | Code review and audit |
-| `transcription` | Audio/video transcriptions |
-| `task-splitter` | Meta-adapter for splitting large tasks |
+Adapters define the entire lifecycle of a task:
+
+| Adapter | Pipeline Stages | Use Case |
+|---------|-----------------|----------|
+| `article-with-audit` | 8 stages | Writing → Proofreading → Audit |
+| `translation` | 5 stages | Translation with review |
+| `code-audit` | 4 stages | Code review and audit |
+| `task-splitter` | 4 stages | Meta-adapter for splitting tasks |
+| `multi-model-research` | 6 stages | Research using different models |
 
 Each adapter defines:
-- **Start prompt** with templates (e.g., `{{task.title}}`)
-- **Completion criteria** - when to consider task done
-- **Output processing** - how to save and process results
-- **Status flow** - what statuses the task goes through
+- **Stages** - custom status names (e.g., `during_article_writing`, `awaiting_audit`)
+- **Executors** - specific model per stage (gpt-4o, claude-sonnet, NOT tiers!)
+- **Task-to-fulfill** - descriptive, human-readable instructions
+- **Inputs/Outputs** - with named references and descriptions
+- **Routing** - conditional logic (IF/THEN/ELSE)
+- **Forbidden patterns** - for audit stages
+
+**Philosophy**: Extension = "dumb executor". All business logic in adapters.
+
+```xml
+<!-- Example stage from adapter -->
+<stage id="2" name="during_article_writing">
+    <task-to-fulfill>
+        Napisz artykuł na temat określony w tytule i opisie zadania.
+        Artykuł powinien być wyczerpujący, dobrze ustrukturyzowany.
+    </task-to-fulfill>
+    <executor>gpt-4o</executor>
+    <input>
+        <source name="task-definition" stage="initial">
+            <description>Tytuł i opis zadania</description>
+        </source>
+    </input>
+    <next-stage>
+        <routing>Po zakończeniu → awaiting_proofreading</routing>
+    </next-stage>
+</stage>
+```
 
 ---
 
@@ -163,9 +205,9 @@ CEO: "Write 100 cooking articles"
 
 ## 💓 Heartbeat & Self-Healing
 
-Every worker saves its status (heartbeat) every 30s. Manager monitors:
+Every worker saves its status (heartbeat) every 60s (configurable per project). Manager monitors:
 
-- **Unresponsive** (>90s without heartbeat) → Restart worker, reassign task
+- **Unresponsive** (>120s without heartbeat) → Restart worker, reassign task
 - **Faulty** (3+ consecutive failures) → Disable worker, alert CEO
 - **Healthy** → Continue working
 
@@ -180,29 +222,37 @@ This ensures **high availability** and fault tolerance.
 - [x] Opening N VS Code windows as workers
 - [x] Automatic AI task execution via LM API
 - [x] Task completion detection and criteria checking
-- [x] Status management in JSON
+- [x] Status management in XML (migrated from JSON in v0.3.0)
 - [x] Worker auto-start with Copilot Chat
 - [x] Parallel task processing (multiple workers)
 - [x] Shared output directory
-- [x] `finished.flag` for graceful shutdown detection
-- [ ] "No tasks" signaling and window closing (polish)
+- [x] `finished.flag.xml` for graceful shutdown detection
 
 ### Phase 2: Dashboard
+- [x] Sidebar UI panel (Activity Bar)
+- [x] Project Wizard (multi-step webview)
+- [x] Processing ON/OFF control
+- [x] Stop/Resume/Kill buttons
 - [ ] Live status dashboard (webview)
-- [ ] Pause/Resume all workers
-- [ ] Configurable model per role
+- [ ] Pipeline stage visualization
+- [ ] Per-stage model usage stats
 
-### Phase 3: Adapters ✅
+### Phase 3: Adapters ✅ → Upgraded to Pipeline Paradigm (v0.3.0)
 - [x] Adapter loading system (adapter-loader.ts)
-- [x] Template rendering for prompts (Mustache)
-- [x] Built-in adapters: generic, article-generation, task-splitter
-- [x] Custom adapter support (.adapter.json files)
-- [x] Completion criteria checking
+- [x] XML + XSD validation (replacing JSON + Mustache)
+- [x] Built-in adapters: generic, article-with-audit, task-splitter
+- [x] Custom adapter support (.adapter.xml files)
+- [x] Multi-stage pipelines with custom status names
+- [x] Per-stage executor (model) assignment
+- [x] Descriptive task-to-fulfill (not templates!)
+- [x] Allowed lists with CUSTOM option
+- [ ] Pipeline engine implementation
 
-### Phase 4: Audit Flow ✅ DONE
-- [x] Extended audit statuses (in types)
-- [x] Auto-retry for failed tasks (task-manager.ts)
-- [x] Status flow management (pending → assigned → completed)
+### Phase 4: Audit Flow ✅ DONE → Upgraded (v0.3.0)
+- [x] Audit stages in pipeline (is-audit="true")
+- [x] Forbidden patterns checking
+- [x] Pass/fail routing
+- [x] Auto-retry with feedback to previous stage
 
 ### Phase 5: Task Splitting
 - [x] Meta-tasks and task-splitter adapter
@@ -210,15 +260,16 @@ This ensures **high availability** and fault tolerance.
 - [ ] Merge & aggregate results
 
 ### Phase 6: Health Monitoring ✅ DONE
-- [x] Heartbeat per worker
+- [x] Heartbeat per worker (60s configurable)
 - [x] Health monitoring (worker-lifecycle.ts)
 - [x] Faulty worker detection with auto-respawn
-- [x] `finished.flag` detection (prevents false crash detection)
+- [x] `finished.flag.xml` detection
 - [ ] CEO alerts (future enhancement)
 
 ### Phase 7: Hierarchy
 - [x] Team Leaders role detection
-- [x] Delegation depth limits (hierarchy-config.json)
+- [x] Delegation depth limits (hierarchy-config.xml) - maxDepth=5, maxSubordinates=50
+- [x] Emergency brake (100 total instances)
 - [ ] Upward reporting in hierarchy
 
 ### Phase 8+ (Future)
@@ -234,9 +285,9 @@ This ensures **high availability** and fault tolerance.
 - **Language**: TypeScript
 - **Platform**: VS Code Extension API
 - **UI**: VS Code Webview (dashboard)
-- **Storage**: JSON files (no external database)
+- **Storage**: XML files with XSD validation (no external database)
 - **Communication**: File-based (file watchers)
-- **Templating**: Mustache/Handlebars (for adapters)
+- **Config Validation**: XML Schema Definition (XSD)
 
 ---
 
@@ -296,12 +347,26 @@ TBD. Proposals:
 ---
 
 *Document created: December 7, 2025*
-*Version: 0.2.0*
+*Version: 0.3.0*
 
 **Milestones achieved:**
 - First autonomous parallel AI task execution
 - Task continuation validated (workers auto-claim next tasks)
 - Multi-task queue processing (4 tasks / 2 workers) - initial POC
 - **Production test: 4 workers × 10 tasks = Reddit launch campaign!**
-- Graceful shutdown with `finished.flag` mechanism
+- Graceful shutdown with `finished.flag.xml` mechanism
 - Health monitoring auto-recovery (respawn crashed workers)
+
+**v0.3.0 Additions:**
+- Complete migration from JSON to XML + XSD validation
+- Pipeline adapter paradigm (adapters define complete workflows)
+- Descriptive tags replacing Mustache templates
+- Per-stage executor assignment
+- Allowed lists with CUSTOM option pattern
+- TeamLeader role full documentation
+- New limits: maxDepth=5, maxSubordinates=50, emergencyBrake=100
+- Configurable heartbeat interval (60s default)
+- **Sidebar UI** - WebviewViewProvider in Activity Bar
+- **Project Wizard** - 4-step GUI wizard with animations
+- **Responsive CSS** - clamp() sizing for all screen sizes
+- **Help & About panels** - Webview documentation
