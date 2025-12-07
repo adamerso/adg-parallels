@@ -1111,6 +1111,110 @@ export async function generateReport(): Promise<void> {
 }
 
 // =============================================================================
+// COMMAND: Start Audit
+// =============================================================================
+
+/**
+ * Start audit for completed tasks
+ */
+export async function startAudit(): Promise<void> {
+  const roleInfo = detectRole();
+  if (!roleInfo) {
+    vscode.window.showErrorMessage('Could not detect workspace role');
+    return;
+  }
+
+  // Get management directory
+  let managementDir = roleInfo.paths.managementDir;
+  if (!managementDir && roleInfo.role === 'ceo') {
+    const potentialMgmtDir = path.join(roleInfo.paths.adgRoot, 'management');
+    if (pathExists(potentialMgmtDir)) {
+      managementDir = potentialMgmtDir;
+    }
+  }
+
+  if (!managementDir) {
+    vscode.window.showErrorMessage('Management directory not found.');
+    return;
+  }
+
+  // Find tasks file
+  const tasksFile = findTasksFile(managementDir);
+  if (!tasksFile) {
+    vscode.window.showErrorMessage('No tasks file found.');
+    return;
+  }
+
+  const taskManager = new TaskManager(tasksFile);
+  
+  // Get tasks ready for audit
+  const tasksToAudit = await taskManager.getTasksReadyForAudit();
+
+  if (tasksToAudit.length === 0) {
+    vscode.window.showInformationMessage('No completed tasks ready for audit.');
+    return;
+  }
+
+  // Let user choose: audit all or select specific
+  const choice = await vscode.window.showQuickPick([
+    { label: `$(checklist) Audit All (${tasksToAudit.length} tasks)`, value: 'all' },
+    { label: '$(list-selection) Select Tasks to Audit', value: 'select' },
+  ], { placeHolder: 'Choose audit mode' });
+
+  if (!choice) {
+    return;
+  }
+
+  let selectedTasks: Task[] = [];
+
+  if (choice.value === 'all') {
+    selectedTasks = tasksToAudit;
+  } else {
+    const picks = await vscode.window.showQuickPick(
+      tasksToAudit.map(t => ({
+        label: `#${t.id}: ${t.title}`,
+        description: t.type,
+        picked: false,
+        task: t,
+      })),
+      { 
+        placeHolder: 'Select tasks to audit',
+        canPickMany: true,
+      }
+    );
+
+    if (!picks || picks.length === 0) {
+      return;
+    }
+
+    selectedTasks = picks.map(p => p.task);
+  }
+
+  // Create audit tasks
+  let created = 0;
+  for (const task of selectedTasks) {
+    // Read output content if available
+    let outputContent: string | undefined;
+    if (task.outputFile && pathExists(task.outputFile)) {
+      try {
+        outputContent = fs.readFileSync(task.outputFile, 'utf8');
+      } catch {
+        // Ignore read errors
+      }
+    }
+
+    const auditTask = await taskManager.createAuditTask(task.id, outputContent);
+    if (auditTask) {
+      created++;
+    }
+  }
+
+  vscode.window.showInformationMessage(
+    `✅ Created ${created} audit tasks. Workers can now process them.`
+  );
+}
+
+// =============================================================================
 // REGISTER ALL COMMANDS
 // =============================================================================
 
@@ -1125,6 +1229,7 @@ export function registerCommands(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('adg-parallels.executeTask', executeTask),
     vscode.commands.registerCommand('adg-parallels.aggregateOutputs', aggregateOutputs),
     vscode.commands.registerCommand('adg-parallels.generateReport', generateReport),
+    vscode.commands.registerCommand('adg-parallels.startAudit', startAudit),
   );
 
   logger.info('Commands registered');

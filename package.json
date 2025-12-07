@@ -83,6 +83,11 @@
         "command": "adg-parallels.generateReport",
         "title": "ADG: Generate Status Report",
         "category": "ADG-Parallels"
+      },
+      {
+        "command": "adg-parallels.startAudit",
+        "title": "ADG: Start Audit for Completed Tasks",
+        "category": "ADG-Parallels"
       }
     ],
     "configuration": {

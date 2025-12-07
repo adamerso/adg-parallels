@@ -167,9 +167,10 @@
 - ✅ Auto-retry for `audit_failed` (retryCount/maxRetries)
 
 ### 4.2 Auditors
-- ⬜ Separate auditor role/pool
-- ⬜ Or: same worker audits others' work
-- ⬜ Audit rules configuration
+- ✅ Task-audit adapter for reviewing completed work
+- ✅ createAuditTask() - creates audit task from completed task
+- ✅ processAuditResult() - updates original task status
+- ✅ ADG: Start Audit for Completed Tasks command
 
 ---
 

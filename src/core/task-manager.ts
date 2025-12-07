@@ -501,6 +501,89 @@ export class TaskManager {
       return this.saveSync(data);
     }) ?? false;
   }
+
+  /**
+   * Create an audit task for a completed task
+   */
+  async createAuditTask(originalTaskId: number, outputContent?: string): Promise<Task | null> {
+    const originalTask = await this.getTask(originalTaskId);
+    if (!originalTask) {
+      logger.error(`Task ${originalTaskId} not found for audit`);
+      return null;
+    }
+
+    if (originalTask.status !== 'task_completed') {
+      logger.warn(`Task ${originalTaskId} is not completed, cannot audit`);
+      return null;
+    }
+
+    // Update original task to audit_in_progress
+    await this.updateTaskStatus(originalTaskId, 'audit_in_progress');
+
+    // Create audit task
+    const auditTask = await this.addTask({
+      type: 'task-audit',
+      title: `Audit: ${originalTask.title}`,
+      description: `Review the output of task #${originalTaskId}`,
+      status: 'pending',
+      maxRetries: 2,
+      params: {
+        originalTaskId: originalTaskId,
+        originalType: originalTask.type,
+        originalTitle: originalTask.title,
+        outputFile: originalTask.outputFile,
+        outputContent: outputContent?.substring(0, 5000), // Limit content size
+      },
+    });
+
+    if (auditTask) {
+      logger.info(`Created audit task #${auditTask.id} for task #${originalTaskId}`);
+    }
+
+    return auditTask;
+  }
+
+  /**
+   * Process audit result and update original task
+   */
+  async processAuditResult(
+    auditTaskId: number, 
+    passed: boolean, 
+    reason?: string
+  ): Promise<boolean> {
+    const auditTask = await this.getTask(auditTaskId);
+    if (!auditTask || auditTask.type !== 'task-audit') {
+      logger.error(`Invalid audit task: ${auditTaskId}`);
+      return false;
+    }
+
+    const originalTaskId = auditTask.params?.originalTaskId as number;
+    if (!originalTaskId) {
+      logger.error('Audit task missing originalTaskId');
+      return false;
+    }
+
+    // Update original task status based on audit result
+    const newStatus = passed ? 'audit_passed' : 'audit_failed';
+    const success = await this.updateTaskStatus(originalTaskId, newStatus);
+
+    if (success) {
+      logger.info(`Audit ${passed ? 'passed' : 'failed'} for task #${originalTaskId}`, { reason });
+    }
+
+    return success;
+  }
+
+  /**
+   * Get tasks ready for audit (completed but not yet audited)
+   */
+  async getTasksReadyForAudit(): Promise<Task[]> {
+    const tasks = await this.getAllTasks();
+    return tasks.filter(t => 
+      t.status === 'task_completed' && 
+      t.type !== 'task-audit' // Don't audit audit tasks
+    );
+  }
 }
 
 /**

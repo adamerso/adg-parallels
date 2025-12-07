@@ -594,6 +594,82 @@ Respond with "AUDIT PASSED" or "AUDIT FAILED: [specific issues]".`
 }
 
 /**
+ * Get the built-in task audit adapter
+ */
+export function getBuiltInTaskAuditAdapter(): TaskAdapter {
+  return {
+    adapterId: 'task-audit',
+    version: '1.0',
+    displayName: 'Task Audit',
+    prompts: {
+      taskStart: `# Task Audit Assignment
+
+You are an ADG-Parallels Auditor. Your job is to review completed work.
+
+## Task to Audit: #{{task.id}}
+
+### Original Task
+**Title:** {{task.title}}
+**Type:** {{task.type}}
+
+{{#task.description}}
+**Description:** {{task.description}}
+{{/task.description}}
+
+### Output to Review
+File: {{task.params.outputFile}}
+
+{{#task.params.outputContent}}
+---
+{{task.params.outputContent}}
+---
+{{/task.params.outputContent}}
+
+## Audit Criteria
+Please evaluate the output against these criteria:
+
+1. **Completeness** - Does it address all requirements?
+2. **Quality** - Is the content well-written/structured?
+3. **Accuracy** - Is the information correct?
+4. **Format** - Does it follow the expected format?
+
+## Your Response
+Provide your audit result in this exact format:
+
+### Audit Summary
+[Brief summary of your findings]
+
+### Issues Found
+[List any issues, or "None" if perfect]
+
+### Verdict
+[Choose ONE: AUDIT PASSED or AUDIT FAILED]
+
+### Reason
+[Explain your verdict]
+
+End with exactly: "AUDIT PASSED" or "AUDIT FAILED: [reason]"`,
+      taskContinue: `Continue your audit of Task #{{task.id}}.
+
+Provide your final verdict: "AUDIT PASSED" or "AUDIT FAILED: [reason]"`,
+    },
+    completionCriteria: {
+      minOutputLength: 100,
+      validationRegex: 'AUDIT (PASSED|FAILED)',
+    },
+    outputProcessing: {
+      saveAs: 'output/audits/audit_{{task.id}}_{{task.params.originalTaskId}}.md',
+    },
+    statusFlow: ['pending', 'processing', 'task_completed'],
+    retryableStatuses: ['pending'],
+    maxRetries: 2,
+    isMeta: false,
+    createsSubtasks: false,
+    requiresManagerRole: false,
+  };
+}
+
+/**
  * Create built-in adapters in the adapters directory
  */
 export function createBuiltInAdapters(adaptersDir: string): void {
@@ -607,6 +683,7 @@ export function createBuiltInAdapters(adaptersDir: string): void {
     { id: 'task-splitter', adapter: getBuiltInTaskSplitterAdapter() },
     { id: 'translation', adapter: getBuiltInTranslationAdapter() },
     { id: 'code-audit', adapter: getBuiltInCodeAuditAdapter() },
+    { id: 'task-audit', adapter: getBuiltInTaskAuditAdapter() },
   ];
 
   for (const { id, adapter } of adapters) {
