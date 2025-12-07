@@ -207,20 +207,31 @@ async function createProjectStructure(
     `project_${options.projectCodename}_adg-tasks.json`
   );
 
+  // Hardcoded sample tasks for testing - fun Polish articles! 🇵🇱
   const sampleTasks: Array<Omit<Task, 'id' | 'retryCount' | 'maxRetries'>> = [
     {
       type: options.taskType,
-      title: 'Sample Task 1',
-      description: 'This is a sample task. Replace with your actual tasks.',
+      title: 'Najlepsze przepisy na włoskie makarony',
+      description: 'Napisz artykuł po polsku o 5 najlepszych przepisach na włoskie makarony. Opisz historię każdego dania, składniki i sposób przygotowania. Styl: przyjazny i apetyczny.',
       status: 'pending',
-      params: { example: true },
+      params: { 
+        language: 'polski',
+        wordCount: 800,
+        tone: 'przyjazny, kulinarny',
+        keywords: 'makaron, Włochy, przepisy, carbonara, bolognese'
+      },
     },
     {
       type: options.taskType,
-      title: 'Sample Task 2',
-      description: 'Another sample task.',
+      title: 'Dlaczego AI jest lepsza od ludzi w szachach',
+      description: 'Napisz humorystyczny artykuł po polsku o wyższości sztucznej inteligencji nad ludźmi w grze w szachy. Możesz żartować z ludzkiej niedoskonałości, ale z szacunkiem. Na końcu przyznaj, że ludzie są fajni.',
       status: 'pending',
-      params: { example: true },
+      params: { 
+        language: 'polski',
+        wordCount: 600,
+        tone: 'humorystyczny, lekko ironiczny',
+        keywords: 'AI, szachy, Deep Blue, Kasparov, sztuczna inteligencja'
+      },
     },
   ];
 
