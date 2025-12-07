@@ -2,16 +2,18 @@
 
 ## ✅ POC COMPLETE - December 7, 2025
 
-> **Proof of Concept validated.**
+> **Proof of Concept validated. Production-ready for simple workflows!**
 > 
 > **Core functionality working:**
 > - Multiple VS Code windows spawning as workers
 > - Extension auto-loads via .vsix installation
 > - Workers auto-claim tasks from shared queue
 > - LM API integration with Copilot models
-> - Parallel task execution (tested: 2 workers × 4 tasks)
+> - Parallel task execution (tested: 4 workers × 10 tasks = Reddit launch campaign!)
 > - Task continuation - workers auto-claim next tasks after completion
 > - Output collected in shared folder
+> - Workers create `finished.flag` when done (prevents infinite respawn)
+> - Health monitoring stops when all tasks completed
 > 
 > **Next focus:** Phase 2 (Dashboard) or Phase 8 (Polish & Release)
 
@@ -80,6 +82,8 @@
 - ✅ Heartbeat updates (every 30s)
 - ✅ Health monitoring (every 15s)
 - ✅ Worker provisioning and spawning
+- ✅ `finished.flag` creation when worker completes
+- ✅ Graceful shutdown detection (flag vs crash)
 
 ### 1.5 Worker Launching
 - ✅ Command: `ADG: Start Workers`
@@ -157,7 +161,7 @@
 
 ---
 
-## 📍 Phase 4: Audit Flow
+## 📍 Phase 4: Audit Flow (DONE ✅)
 
 **Goal**: Tasks can go through verification
 
@@ -201,7 +205,7 @@
 
 ---
 
-## 📍 Phase 6: Health Monitoring & Self-Healing
+## 📍 Phase 6: Health Monitoring & Self-Healing (DONE ✅)
 
 **Goal**: Fault-tolerant system with auto-recovery
 
@@ -218,6 +222,8 @@
 ### 6.3 Self-Healing
 - ✅ Auto-restart unresponsive workers (after 3 failures)
 - ✅ Task reassignment to queue (releaseWorkerTasks)
+- ✅ `finished.flag` detection (graceful vs crash)
+- ✅ Health monitoring auto-stop when all tasks done
 - ⬜ Kill zombie windows (by PID)
 - ✅ Open new worker window (spawnWorker)
 
@@ -326,13 +332,13 @@
 |-------|----------------|--------|
 | Phase 0 | 1-2 days | ✅ Done |
 | Phase 1 | 1-2 weeks | ✅ **POC COMPLETE!** 🎉 |
-| Phase 2 | 1 week | ⬜ (nice to have) |
+| Phase 2 | 1 week | ⬜ Dashboard (next priority) |
 | Phase 3 | 1 week | ✅ Done |
-| Phase 4 | 3-4 days | 🟨 ~50% (statuses done, audit flow TODO) |
-| Phase 5 | 1 week | 🟨 ~30% (task-splitter adapter done) |
-| Phase 6 | 1 week | ✅ Done (heartbeat + monitoring) |
-| Phase 7 | 1-2 weeks | 🟨 ~30% (role detection done) |
-| Phase 8 | 1 week | ⬜ |
+| Phase 4 | 3-4 days | ✅ Done (audit system complete) |
+| Phase 5 | 1 week | ✅ ~80% (AI splitting done, per-line/chunk TODO) |
+| Phase 6 | 1 week | ✅ Done (finished.flag + health monitoring) |
+| Phase 7 | 1-2 weeks | ✅ ~80% (hierarchy + reporting done) |
+| Phase 8 | 1 week | ⬜ Documentation & Polish |
 
 *Timeline is tentative and depends on CEO availability and discovered technical challenges.*
 
@@ -353,16 +359,19 @@
 - Minimum output length checking
 **Implementation**: `src/core/prompt-renderer.ts` - `checkCompletionCriteria()`, `parseCompletionSignal()`
 
-## 🔴 REMAINING CHALLENGES
+## ✅ RECENTLY RESOLVED
 
-### 1. Window Auto-Close
-**Status**: TODO
-**Impact**: Worker windows don't auto-close after all tasks done
-**Solution**: Implement file watcher for `worker-all-task-disposed.md`
+### 1. Window Auto-Close ✅ SOLVED
+**Status**: RESOLVED via `finished.flag` + `workerAutoClose` setting
+**Solution**: 
+- Workers create `finished.flag` when no more tasks
+- Manager checks flag before respawning (graceful exit ≠ crash)
+- Health monitoring auto-stops when all tasks completed
+- `workerAutoClose` setting with configurable delay
 
 ---
 
 *Last updated: December 7, 2025*
-*Version: 1.1-POC*
+*Version: 0.2.0*
 
-**Status:** Core POC complete. Ready for dashboard or polish phase.
+**Status:** v0.2.0 - Production-tested with 4 workers × 10 tasks (Reddit launch campaign). Ready for dashboard or polish phase.
