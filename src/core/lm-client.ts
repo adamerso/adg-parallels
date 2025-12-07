@@ -80,17 +80,36 @@ export async function selectModel(
   family?: string
 ): Promise<vscode.LanguageModelChat | null> {
   try {
-    const selector: vscode.LanguageModelChatSelector = { vendor };
+    // First try with specific vendor
+    let selector: vscode.LanguageModelChatSelector = { vendor };
     if (family) {
       (selector as { vendor: string; family?: string }).family = family;
     }
     
-    const models = await vscode.lm.selectChatModels(selector);
+    let models = await vscode.lm.selectChatModels(selector);
     
+    // If no models found with specific vendor, try without vendor filter
     if (models.length === 0) {
-      logger.warn(`No models found for vendor: ${vendor}, family: ${family}`);
+      logger.warn(`No models found for vendor: ${vendor}, trying all available models...`);
+      models = await vscode.lm.selectChatModels({});
+    }
+
+    if (models.length === 0) {
+      logger.error('No language models available at all');
+      // Show available models for debugging
+      vscode.window.showErrorMessage(
+        'No language models found. Make sure GitHub Copilot Chat is installed and you are signed in.',
+        'Open Extensions'
+      ).then(action => {
+        if (action === 'Open Extensions') {
+          vscode.commands.executeCommand('workbench.extensions.search', 'GitHub Copilot');
+        }
+      });
       return null;
     }
+
+    // Log all available models for debugging
+    logger.info(`Available models: ${models.map(m => `${m.vendor}/${m.family}/${m.id}`).join(', ')}`);
 
     // Prefer the specified family, or take the first available
     const model = family 

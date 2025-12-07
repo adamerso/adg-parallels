@@ -33,6 +33,13 @@ export class TaskManager {
   }
 
   /**
+   * Get the path to the tasks file
+   */
+  getFilePath(): string {
+    return this.tasksFilePath;
+  }
+
+  /**
    * Load the project tasks file
    */
   async load(): Promise<ProjectTasks | null> {

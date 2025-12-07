@@ -94,6 +94,18 @@
           "minimum": 30,
           "maximum": 300,
           "description": "Time in seconds before worker is considered unresponsive"
+        },
+        "adg-parallels.workerAutoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start task execution when a worker window opens"
+        },
+        "adg-parallels.workerAutoStartDelay": {
+          "type": "number",
+          "default": 5000,
+          "minimum": 1000,
+          "maximum": 30000,
+          "description": "Delay in milliseconds before auto-starting task execution (increase if VS Code shows update dialogs)"
         }
       }
     }

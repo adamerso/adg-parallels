@@ -6,7 +6,9 @@
  */
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { logger } from './utils/logger';
+import { readJson } from './utils/file-operations';
 import { detectRole, isAdgProject, getRoleDisplayInfo, canDelegate, isWorker } from './core/role-detector';
 import { TaskManager, findTasksFile } from './core/task-manager';
 import { 
@@ -15,6 +17,7 @@ import {
   createWorkerLifecycle 
 } from './core/worker-lifecycle';
 import { registerCommands } from './commands';
+import { WorkerConfig } from './types';
 
 // =============================================================================
 // GLOBAL STATE
@@ -105,17 +108,54 @@ async function initializeRoleBasedFeatures(context: vscode.ExtensionContext): Pr
     }
   }
 
-  if (roleInfo.role === 'worker' && roleInfo.workerId && roleInfo.paths.managementDir) {
-    const tasksFile = findTasksFile(roleInfo.paths.managementDir);
-    if (tasksFile) {
-      const taskManager = new TaskManager(tasksFile);
+  if (roleInfo.role === 'worker' && roleInfo.workerId) {
+    // Worker gets tasks file path from worker.json config
+    const workerConfigPath = path.join(roleInfo.paths.workspaceRoot, 'worker.json');
+    const workerConfig = readJson<WorkerConfig>(workerConfigPath);
+    
+    if (workerConfig && workerConfig.paths.tasksFile) {
+      const taskManager = new TaskManager(workerConfig.paths.tasksFile);
+      
+      // For worker lifecycle, we need the management dir (parent of tasks file)
+      const managementDir = path.dirname(workerConfig.paths.tasksFile);
+      
       lifecycleManager = createWorkerLifecycle(
-        roleInfo.paths.managementDir,
+        managementDir,
         taskManager,
         roleInfo.workerId
       );
       await lifecycleManager.initialize();
       logger.info('Worker lifecycle initialized');
+
+      // Auto-start task execution for workers!
+      // Small delay to let UI fully load
+      const config = vscode.workspace.getConfiguration('adg-parallels');
+      const autoStart = config.get('workerAutoStart', true);
+      const autoStartDelay = config.get('workerAutoStartDelay', 2000);
+      
+      if (autoStart) {
+        setTimeout(async () => {
+          logger.info('🥚 Worker auto-starting task execution...');
+          
+          // Try to open Copilot Chat panel first (in case it's collapsed)
+          try {
+            await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
+            // Small delay after opening chat
+            await new Promise(resolve => setTimeout(resolve, 500));
+          } catch (e) {
+            logger.warn('Could not open Copilot panel, continuing anyway...', e);
+          }
+          
+          vscode.window.showInformationMessage('🥚 Ejajka-Worker reporting for duty! Starting task execution...');
+          
+          // Execute the task command with 'all' mode - no prompts, just work!
+          await vscode.commands.executeCommand('adg-parallels.executeTask', 'all');
+        }, autoStartDelay as number);
+      }
+    } else {
+      logger.warn('Worker config not found or missing tasks file path', { 
+        configPath: workerConfigPath 
+      });
     }
   }
 }

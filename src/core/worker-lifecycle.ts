@@ -182,8 +182,8 @@ export class WorkerLifecycleManager {
     ensureDir(path.join(workerDir, 'output'));
     ensureDir(path.join(workerDir, '.adg-parallels', 'worker'));
 
-    // Get tasks file path
-    const tasksFilePath = path.join(this.managementDir, '..', 'project_tasks.json');
+    // Get tasks file path from task manager (correct dynamic path)
+    const tasksFilePath = this.taskManager.getFilePath();
 
     // Create worker config
     const workerConfig: WorkerConfig = {

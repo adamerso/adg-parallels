@@ -18,7 +18,7 @@ import { logger } from '../utils/logger';
 const ADG_DIR = '.adg-parallels';
 const MANAGEMENT_DIR = 'management';
 const WORKER_DIR = 'worker';
-const WORKER_CONFIG_FILE = 'worker-config.json';
+const WORKER_CONFIG_FILE = 'worker.json';
 const HIERARCHY_CONFIG_FILE = 'hierarchy-config.json';
 
 /**
@@ -76,7 +76,8 @@ export function detectRole(): RoleInfo | null {
   let depth = 0;
 
   if (hasWorker) {
-    const workerConfig = getWorkerConfig(workerDir);
+    // Worker config is in workspace root, not in .adg-parallels/worker/
+    const workerConfig = getWorkerConfig(workspaceRoot);
     if (workerConfig) {
       workerId = workerConfig.workerId;
     }
@@ -158,13 +159,24 @@ export function isManager(): boolean {
  */
 export function canDelegate(): boolean {
   const roleInfo = detectRole();
-  if (!roleInfo || !roleInfo.paths.managementDir) {
+  if (!roleInfo) {
+    return false;
+  }
+
+  // CEO can always delegate (even without hierarchy config)
+  if (roleInfo.role === 'ceo') {
+    return true;
+  }
+
+  // Manager/TeamLead need management directory
+  if (!roleInfo.paths.managementDir) {
     return false;
   }
 
   const hierarchyConfig = getHierarchyConfig(roleInfo.paths.managementDir);
   if (!hierarchyConfig) {
-    return false;
+    // No config = Manager can still delegate (default behavior)
+    return roleInfo.role === 'manager' || roleInfo.role === 'teamlead';
   }
 
   // Check depth limit

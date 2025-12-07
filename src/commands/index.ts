@@ -207,20 +207,31 @@ async function createProjectStructure(
     `project_${options.projectCodename}_adg-tasks.json`
   );
 
+  // Hardcoded sample tasks for testing - fun Polish articles! 🇵🇱
   const sampleTasks: Array<Omit<Task, 'id' | 'retryCount' | 'maxRetries'>> = [
     {
       type: options.taskType,
-      title: 'Sample Task 1',
-      description: 'This is a sample task. Replace with your actual tasks.',
+      title: 'Najlepsze przepisy na włoskie makarony',
+      description: 'Napisz artykuł po polsku o 5 najlepszych przepisach na włoskie makarony. Opisz historię każdego dania, składniki i sposób przygotowania. Styl: przyjazny i apetyczny.',
       status: 'pending',
-      params: { example: true },
+      params: { 
+        language: 'polski',
+        wordCount: 800,
+        tone: 'przyjazny, kulinarny',
+        keywords: 'makaron, Włochy, przepisy, carbonara, bolognese'
+      },
     },
     {
       type: options.taskType,
-      title: 'Sample Task 2',
-      description: 'Another sample task.',
+      title: 'Dlaczego AI jest lepsza od ludzi w szachach',
+      description: 'Napisz humorystyczny artykuł po polsku o wyższości sztucznej inteligencji nad ludźmi w grze w szachy. Możesz żartować z ludzkiej niedoskonałości, ale z szacunkiem. Na końcu przyznaj, że ludzie są fajni.',
       status: 'pending',
-      params: { example: true },
+      params: { 
+        language: 'polski',
+        wordCount: 600,
+        tone: 'humorystyczny, lekko ironiczny',
+        keywords: 'AI, szachy, Deep Blue, Kasparov, sztuczna inteligencja'
+      },
     },
   ];
 
@@ -292,9 +303,18 @@ export async function startWorkers(): Promise<void> {
     return;
   }
 
-  const managementDir = roleInfo.paths.managementDir;
+  // Get management directory - for CEO it's in .adg-parallels/management/
+  let managementDir = roleInfo.paths.managementDir;
+  if (!managementDir && roleInfo.role === 'ceo') {
+    // CEO - check if project is provisioned
+    const potentialMgmtDir = path.join(roleInfo.paths.adgRoot, 'management');
+    if (pathExists(potentialMgmtDir)) {
+      managementDir = potentialMgmtDir;
+    }
+  }
+
   if (!managementDir) {
-    vscode.window.showErrorMessage('Management directory not found. Please provision project first.');
+    vscode.window.showErrorMessage('Management directory not found. Please run "ADG: Provision New Project" first.');
     return;
   }
 
@@ -628,8 +648,9 @@ export async function completeCurrentTask(): Promise<void> {
 
 /**
  * Command for workers to execute a task using the Language Model API
+ * @param autoMode If 'all', skip the UI and execute all pending tasks automatically
  */
-export async function executeTask(): Promise<void> {
+export async function executeTask(autoMode?: 'all' | 'next'): Promise<void> {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) {
     vscode.window.showErrorMessage('No workspace folder open');
@@ -695,21 +716,56 @@ export async function executeTask(): Promise<void> {
   const stats = await taskManager.getStats();
 
   if (!stats || stats.pending === 0) {
-    vscode.window.showInformationMessage('No pending tasks available.');
+    vscode.window.showInformationMessage('🥚 No pending tasks available. Worker going idle.');
+    
+    // If worker, close window after completing all tasks
+    if (roleInfo.role === 'worker') {
+      const shouldClose = await vscode.window.showInformationMessage(
+        'All tasks completed! Close this worker window?',
+        'Yes', 'No'
+      );
+      if (shouldClose === 'Yes') {
+        await vscode.commands.executeCommand('workbench.action.closeWindow');
+      }
+    }
     return;
   }
 
-  // Ask user what to do
-  const action = await vscode.window.showQuickPick([
-    { label: '$(play) Execute Next Task', value: 'next', description: `${stats.pending} tasks pending` },
-    { label: '$(list-unordered) Select Task to Execute', value: 'select' },
-    { label: '$(run-all) Execute All Pending Tasks', value: 'all', description: 'Run in loop until done' },
-  ], {
-    placeHolder: 'What would you like to do?',
-  });
+  // Determine action - autoMode skips UI for workers
+  let actionValue: 'next' | 'select' | 'all';
+  
+  if (autoMode) {
+    // Auto-started worker - use specified mode
+    actionValue = autoMode;
+    logger.info(`Auto-mode execution: ${autoMode}`);
+  } else if (roleInfo.role === 'worker') {
+    // Worker without autoMode - default to 'all' but show quick confirmation
+    const confirm = await vscode.window.showQuickPick([
+      { label: '$(run-all) Execute All Pending Tasks', value: 'all', description: `${stats.pending} tasks waiting` },
+      { label: '$(play) Execute Next Task Only', value: 'next' },
+      { label: '$(close) Cancel', value: 'cancel' },
+    ], {
+      placeHolder: '🥚 Ejajka-Worker ready! What should I do?',
+    });
+    
+    if (!confirm || confirm.value === 'cancel') {
+      return;
+    }
+    actionValue = confirm.value as 'next' | 'all';
+  } else {
+    // Manager/CEO - full menu (loop first as most common action)
+    const action = await vscode.window.showQuickPick([
+      { label: '$(run-all) Execute All Pending Tasks', value: 'all', description: `${stats.pending} tasks - run loop until done` },
+      { label: '$(play) Execute Next Task Only', value: 'next', description: 'Process one task and stop' },
+      { label: '$(list-unordered) Select Specific Task', value: 'select' },
+    ], {
+      placeHolder: 'What would you like to do?',
+    });
 
-  if (!action) {
-    return;
+    if (!action) {
+      return;
+    }
+    actionValue = action.value as 'next' | 'select' | 'all';
   }
 
   // Ensure adapters exist
@@ -760,7 +816,7 @@ export async function executeTask(): Promise<void> {
   }
 
   // Execute based on action
-  switch (action.value) {
+  switch (actionValue) {
     case 'next': {
       const result = await executor.executeNextTask();
       if (!result) {
@@ -790,14 +846,31 @@ export async function executeTask(): Promise<void> {
     }
     
     case 'all': {
-      const confirm = await vscode.window.showWarningMessage(
-        `This will execute all ${stats.pending} pending tasks. Continue?`,
-        'Yes, Execute All',
-        'Cancel'
-      );
+      // Skip confirmation for auto-mode workers
+      if (!autoMode) {
+        const confirm = await vscode.window.showWarningMessage(
+          `This will execute all ${stats.pending} pending tasks. Continue?`,
+          'Yes, Execute All',
+          'Cancel'
+        );
+        
+        if (confirm !== 'Yes, Execute All') {
+          return;
+        }
+      }
       
-      if (confirm === 'Yes, Execute All') {
-        await executor.runLoop();
+      logger.info(`🥚 Starting execution loop for ${stats.pending} tasks...`);
+      await executor.runLoop();
+      
+      // After completing all tasks, offer to close worker window
+      if (roleInfo.role === 'worker') {
+        const shouldClose = await vscode.window.showInformationMessage(
+          '🎉 All tasks completed! Close this worker window?',
+          'Yes', 'No'
+        );
+        if (shouldClose === 'Yes') {
+          await vscode.commands.executeCommand('workbench.action.closeWindow');
+        }
       }
       break;
     }
