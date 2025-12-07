@@ -31,6 +31,7 @@ export interface TaskRenderData {
   description?: string;
   status: string;
   params: Record<string, unknown>;
+  params_json?: string | null;  // JSON string of params for easy template display
   retryCount: number;
   [key: string]: unknown;
 }
@@ -110,6 +111,11 @@ export function buildRenderContext(
   projectCodename: string = 'project',
   projectStats?: { total: number; completed: number; pending: number }
 ): RenderContext {
+  // Create params_json for easy display in templates
+  const paramsJson = task.params && Object.keys(task.params).length > 0
+    ? JSON.stringify(task.params, null, 2)
+    : null;
+
   const taskData: TaskRenderData = {
     // Spread base task properties first
     ...task,
@@ -121,6 +127,7 @@ export function buildRenderContext(
     description: task.description,
     status: task.status,
     params: task.params ?? {},
+    params_json: paramsJson,  // JSON string for easy template display
     retryCount: task.retryCount,
   };
 

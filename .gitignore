@@ -38,6 +38,9 @@ coverage/
 *.temp
 .cache/
 
+# Local workspace - private, not committed
+.adg-local-no-repo/
+
 # Archive (Polish versions, drafts)
 archive/
 

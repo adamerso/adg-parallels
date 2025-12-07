@@ -200,12 +200,12 @@ You are an ADG-Parallels Worker. Complete the following task:
 {{task.description}}
 {{/task.description}}
 
-{{#task.params}}
+{{#task.params_json}}
 ### Parameters
-{{#each task.params}}
-- **{{@key}}**: {{this}}
-{{/each}}
-{{/task.params}}
+\`\`\`json
+{{{task.params_json}}}
+\`\`\`
+{{/task.params_json}}
 
 ## Instructions
 1. Analyze the task requirements
