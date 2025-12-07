@@ -7,7 +7,7 @@
   "author": {
     "name": "ADG-Parallels Team"
   },
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
     "url": "https://github.com/YOUR_USERNAME/adg-parallels.git"
@@ -37,27 +37,33 @@
     "commands": [
       {
         "command": "adg-parallels.provisionProject",
-        "title": "ADG: Provision New Project"
+        "title": "ADG: Provision New Project",
+        "category": "ADG-Parallels"
       },
       {
         "command": "adg-parallels.startWorkers",
-        "title": "ADG: Start Workers"
+        "title": "ADG: Start Workers",
+        "category": "ADG-Parallels"
       },
       {
-        "command": "adg-parallels.showDashboard",
-        "title": "ADG: Show Dashboard"
+        "command": "adg-parallels.showStatus",
+        "title": "ADG: Show Status",
+        "category": "ADG-Parallels"
       },
       {
-        "command": "adg-parallels.pauseWorkers",
-        "title": "ADG: Pause All Workers"
+        "command": "adg-parallels.importTasksCsv",
+        "title": "ADG: Import Tasks from CSV",
+        "category": "ADG-Parallels"
       },
       {
-        "command": "adg-parallels.resumeWorkers",
-        "title": "ADG: Resume Workers"
+        "command": "adg-parallels.claimNextTask",
+        "title": "ADG: Claim Next Task (Worker)",
+        "category": "ADG-Parallels"
       },
       {
-        "command": "adg-parallels.abortProject",
-        "title": "ADG: Abort Project"
+        "command": "adg-parallels.completeTask",
+        "title": "ADG: Complete Current Task (Worker)",
+        "category": "ADG-Parallels"
       }
     ],
     "configuration": {
@@ -105,8 +111,11 @@
     "typescript": "^5.8.2",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1"
-  },
-  "dependencies": {
+  },pendencies": {
     "mustache": "^4.2.0"
   }
 }
+,
+  "overrides": {
+    "undici": "5.28.4"
+  }
