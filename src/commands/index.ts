@@ -364,14 +364,30 @@ export async function startWorkers(): Promise<void> {
     return;
   }
 
+  // Load hierarchy config for limits
+  const hierarchyConfigPath = path.join(managementDir, 'hierarchy-config.json');
+  const hierarchyConfig = pathExists(hierarchyConfigPath) 
+    ? JSON.parse(fs.readFileSync(hierarchyConfigPath, 'utf8'))
+    : null;
+  
+  // Get max allowed workers from hierarchy config
+  const maxFromEmergencyBrake = hierarchyConfig?.emergencyBrake?.maxTotalInstances ?? 10;
+  const currentRoleLevel = roleInfo.role === 'ceo' ? 0 : (roleInfo.role === 'manager' ? 1 : 2);
+  const levelConfig = hierarchyConfig?.levelConfig?.[currentRoleLevel];
+  const maxFromRole = levelConfig?.maxSubordinates ?? 10;
+  const maxAllowedWorkers = Math.min(maxFromEmergencyBrake, maxFromRole, 10);
+
   // Confirm worker count
   const countStr = await vscode.window.showInputBox({
-    prompt: `Start how many workers? (${stats.pending} pending tasks, configured for ${config.workerCount} workers)`,
-    value: Math.min(stats.pending, config.workerCount).toString(),
+    prompt: `Start how many workers? (${stats.pending} pending tasks, max ${maxAllowedWorkers} allowed)`,
+    value: Math.min(stats.pending, config.workerCount, maxAllowedWorkers).toString(),
     validateInput: (value) => {
       const num = parseInt(value, 10);
-      if (isNaN(num) || num < 1 || num > 10) {
-        return 'Worker count must be between 1 and 10';
+      if (isNaN(num) || num < 1) {
+        return 'Worker count must be at least 1';
+      }
+      if (num > maxAllowedWorkers) {
+        return `Worker count cannot exceed ${maxAllowedWorkers} (hierarchy limit)`;
       }
       return null;
     }

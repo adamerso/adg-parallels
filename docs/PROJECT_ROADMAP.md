@@ -239,7 +239,7 @@
 - ✅ `maxDepth` defined in config
 - ✅ `maxSubordinates` per level
 - ✅ `emergencyBrake` - max total instances
-- ⬜ Enforcement in worker spawning
+- ✅ Enforcement in worker spawning
 
 ### 7.3 Upward Reporting
 - ⬜ Worker reports to TL
