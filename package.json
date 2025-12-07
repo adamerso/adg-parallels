@@ -110,6 +110,18 @@
           "minimum": 1000,
           "maximum": 30000,
           "description": "Delay in milliseconds before auto-starting task execution (increase if VS Code shows update dialogs)"
+        },
+        "adg-parallels.workerAutoClose": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically close worker window after all tasks are completed"
+        },
+        "adg-parallels.workerAutoCloseDelay": {
+          "type": "number",
+          "default": 3000,
+          "minimum": 0,
+          "maximum": 30000,
+          "description": "Delay in milliseconds before auto-closing worker window (gives time to see completion message)"
         }
       }
     }

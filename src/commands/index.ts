@@ -740,17 +740,31 @@ export async function executeTask(autoMode?: 'all' | 'next'): Promise<void> {
   const stats = await taskManager.getStats();
 
   if (!stats || stats.pending === 0) {
-    vscode.window.showInformationMessage('🥚 No pending tasks available. Worker going idle.');
-    
-    // If worker, close window after completing all tasks
+    // If worker, handle auto-close
     if (roleInfo.role === 'worker') {
-      const shouldClose = await vscode.window.showInformationMessage(
-        'All tasks completed! Close this worker window?',
-        'Yes', 'No'
-      );
-      if (shouldClose === 'Yes') {
+      const config = vscode.workspace.getConfiguration('adg-parallels');
+      const autoClose = config.get('workerAutoClose', true);
+      const autoCloseDelay = config.get('workerAutoCloseDelay', 3000) as number;
+      
+      if (autoMode && autoClose) {
+        // Auto-mode: close automatically after delay
+        vscode.window.showInformationMessage(
+          `🥚 No pending tasks. Window closing in ${autoCloseDelay / 1000}s...`
+        );
+        await new Promise(resolve => setTimeout(resolve, autoCloseDelay));
         await vscode.commands.executeCommand('workbench.action.closeWindow');
+      } else {
+        // Manual mode: ask user
+        const shouldClose = await vscode.window.showInformationMessage(
+          '🥚 No pending tasks. Close this worker window?',
+          'Yes', 'No'
+        );
+        if (shouldClose === 'Yes') {
+          await vscode.commands.executeCommand('workbench.action.closeWindow');
+        }
       }
+    } else {
+      vscode.window.showInformationMessage('🥚 No pending tasks available.');
     }
     return;
   }
@@ -886,14 +900,28 @@ export async function executeTask(autoMode?: 'all' | 'next'): Promise<void> {
       logger.info(`🥚 Starting execution loop for ${stats.pending} tasks...`);
       await executor.runLoop();
       
-      // After completing all tasks, offer to close worker window
+      // After completing all tasks, handle worker window
       if (roleInfo.role === 'worker') {
-        const shouldClose = await vscode.window.showInformationMessage(
-          '🎉 All tasks completed! Close this worker window?',
-          'Yes', 'No'
-        );
-        if (shouldClose === 'Yes') {
+        const config = vscode.workspace.getConfiguration('adg-parallels');
+        const autoClose = config.get('workerAutoClose', true);
+        const autoCloseDelay = config.get('workerAutoCloseDelay', 3000) as number;
+        
+        if (autoMode && autoClose) {
+          // Auto-mode: close automatically after delay
+          vscode.window.showInformationMessage(
+            `🎉 All tasks completed! Window closing in ${autoCloseDelay / 1000}s...`
+          );
+          await new Promise(resolve => setTimeout(resolve, autoCloseDelay));
           await vscode.commands.executeCommand('workbench.action.closeWindow');
+        } else {
+          // Manual mode: ask user
+          const shouldClose = await vscode.window.showInformationMessage(
+            '🎉 All tasks completed! Close this worker window?',
+            'Yes', 'No'
+          );
+          if (shouldClose === 'Yes') {
+            await vscode.commands.executeCommand('workbench.action.closeWindow');
+          }
         }
       }
       break;
