@@ -138,13 +138,25 @@ async function initializeRoleBasedFeatures(context: vscode.ExtensionContext): Pr
           logger.info('🥚 Worker auto-starting task execution...');
           
           // Try to open Copilot Chat panel first (in case it's collapsed)
-          try {
-            await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
-            // Small delay after opening chat
-            await new Promise(resolve => setTimeout(resolve, 500));
-          } catch (e) {
-            logger.warn('Could not open Copilot panel, continuing anyway...', e);
+          // Try multiple commands as the name varies between versions
+          const chatCommands = [
+            'workbench.action.chat.open',           // VS Code 1.99+ 
+            'github.copilot.chat.focus',            // Copilot Chat extension
+            'workbench.panel.chat.view.copilot.focus', // Older versions
+          ];
+          
+          for (const cmd of chatCommands) {
+            try {
+              await vscode.commands.executeCommand(cmd);
+              logger.info(`Opened chat with command: ${cmd}`);
+              break;
+            } catch (e) {
+              logger.debug(`Command ${cmd} not available`);
+            }
           }
+          
+          // Wait for chat to fully open
+          await new Promise(resolve => setTimeout(resolve, 1000));
           
           vscode.window.showInformationMessage('🥚 Ejajka-Worker reporting for duty! Starting task execution...');
           
