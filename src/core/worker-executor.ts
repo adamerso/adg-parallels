@@ -190,6 +190,15 @@ export class WorkerExecutor {
       this.callbacks.onProgress?.(task, 'Saving output...');
       const outputPath = await this.saveOutput(task, adapter, context, response.text);
 
+      // Handle meta-tasks (task-splitter) - parse and add subtasks
+      if (adapter.isMeta && adapter.createsSubtasks) {
+        this.callbacks.onProgress?.(task, 'Parsing subtasks from output...');
+        const subtasksAdded = await this.handleMetaTaskOutput(task, response.text);
+        if (subtasksAdded > 0) {
+          logger.info(`Meta-task #${task.id} created ${subtasksAdded} subtasks`);
+        }
+      }
+
       // Update task status
       const newStatus = criteriaResult.passed && completionSignal.isComplete
         ? 'task_completed'
@@ -337,6 +346,52 @@ export class WorkerExecutor {
     logger.info(`Output saved to ${fullPath}`);
 
     return fullPath;
+  }
+
+  /**
+   * Handle meta-task output (e.g., task-splitter)
+   * Parses JSON subtasks from output and adds them to the queue
+   */
+  private async handleMetaTaskOutput(parentTask: Task, output: string): Promise<number> {
+    try {
+      // Extract JSON array from output (may be wrapped in markdown code blocks)
+      const jsonMatch = output.match(/```(?:json)?\s*([\s\S]*?)```/) || 
+                        output.match(/(\[[\s\S]*\])/);
+      
+      if (!jsonMatch) {
+        logger.warn('No JSON subtasks found in meta-task output');
+        return 0;
+      }
+
+      const jsonStr = jsonMatch[1].trim();
+      const subtasks = JSON.parse(jsonStr);
+
+      if (!Array.isArray(subtasks)) {
+        logger.warn('Subtasks output is not an array');
+        return 0;
+      }
+
+      // Add each subtask to the queue
+      const addedTasks = await this.taskManager.addTasks(
+        subtasks.map((st: Record<string, unknown>) => ({
+          type: (st.type as string) || 'article-generation',
+          title: (st.title as string) || 'Untitled subtask',
+          description: (st.description as string) || '',
+          status: 'pending' as const,
+          params: (st.params as Record<string, unknown>) || {},
+          parentTaskId: parentTask.id,
+          maxRetries: 3,
+        }))
+      );
+
+      logger.info(`Added ${addedTasks.length} subtasks from meta-task #${parentTask.id}`);
+      return addedTasks.length;
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to parse subtasks from meta-task output', { error: errorMessage });
+      return 0;
+    }
   }
 
   /**

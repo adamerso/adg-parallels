@@ -77,6 +77,10 @@ export interface Task {
   
   // Custom parameters for adapter
   params?: Record<string, unknown>;
+  
+  // Subtask support (for task-splitter)
+  parentTaskId?: number;     // ID of parent mega-task
+  subtaskIds?: number[];     // IDs of child subtasks (if this is a mega-task)
 }
 
 /**

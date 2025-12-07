@@ -162,9 +162,9 @@
 **Goal**: Tasks can go through verification
 
 ### 4.1 Audit Statuses
-- ⬜ Extended statuses: `audit_in_progress`, `audit_failed`, `audit_passed`
-- ⬜ Configuration of which statuses mean "completed"
-- ⬜ Auto-retry for `audit_failed`
+- ✅ Extended statuses: `audit_in_progress`, `audit_failed`, `audit_passed`
+- ✅ Configuration of which statuses mean "completed"
+- ✅ Auto-retry for `audit_failed` (retryCount/maxRetries)
 
 ### 4.2 Auditors
 - ⬜ Separate auditor role/pool
@@ -178,16 +178,17 @@
 **Goal**: CEO assigns one large task, system splits it automatically
 
 ### 5.1 Meta-task Detection
-- ⬜ Recognizing `task-splitter` type tasks
-- ⬜ Split parameter validation
+- ✅ Recognizing `task-splitter` type tasks (adapter.isMeta)
+- ✅ Split parameter validation in adapter
 
 ### 5.2 Split Strategies
+- ✅ AI-driven splitting via task-splitter adapter
 - ⬜ `per-line` - one task per line in source file
 - ⬜ `per-chunk` - splitting into N chunks
-- ⬜ `ai-driven` - AI decides how to split
 
 ### 5.3 Subtask Management
-- ⬜ Subtask tracking in parent task
+- ✅ Subtask tracking via parentTaskId/subtaskIds
+- ✅ Subtasks added to queue (handleMetaTaskOutput)
 - ⬜ Progress aggregation
 - ⬜ Failure handling (partial completion)
 
@@ -203,24 +204,24 @@
 **Goal**: Fault-tolerant system with auto-recovery
 
 ### 6.1 Heartbeat
-- ⬜ `.heartbeat.json` per worker
-- ⬜ Update every 30s with timestamp, current task, status
+- ✅ `heartbeat.json` per worker
+- ✅ Update every 30s with timestamp, current task, status
 - ⬜ Window PID tracking
 
 ### 6.2 Health Monitor (Manager)
-- ⬜ Heartbeat polling every 30s
-- ⬜ Detecting unresponsive (>90s)
-- ⬜ Detecting faulty (3+ failures)
+- ✅ Heartbeat polling every 15s
+- ✅ Detecting unresponsive (>90s)
+- ✅ Detecting faulty (3+ failures)
 
 ### 6.3 Self-Healing
 - ⬜ Auto-restart unresponsive workers
-- ⬜ Task reassignment to queue
+- ✅ Task reassignment to queue (releaseWorkerTasks)
 - ⬜ Kill zombie windows (by PID)
 - ⬜ Open new worker window
 
 ### 6.4 Alerting
 - ⬜ CEO notification on faulty worker
-- ⬜ Log all restarts
+- ✅ Log all restarts (logger)
 - ⬜ Health report in dashboard
 
 ---
@@ -230,14 +231,15 @@
 **Goal**: Team Leaders can delegate to their own workers
 
 ### 7.1 Team Leader Support
-- ⬜ Team Leader role detection (both directories)
+- ✅ Team Leader role detection (both directories)
 - ⬜ TL can create own workers
-- ⬜ `hierarchy-config.json` inheritance with depth increment
+- ✅ `hierarchy-config.json` with depth/limits
 
 ### 7.2 Hierarchy Limits
-- ⬜ `maxDepth` enforcement
-- ⬜ `maxSubordinates` per level
-- ⬜ `emergencyBrake` - max total instances
+- ✅ `maxDepth` defined in config
+- ✅ `maxSubordinates` per level
+- ✅ `emergencyBrake` - max total instances
+- ⬜ Enforcement in worker spawning
 
 ### 7.3 Upward Reporting
 - ⬜ Worker reports to TL
