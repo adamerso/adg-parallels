@@ -588,13 +588,38 @@ export class TaskManager {
 
 /**
  * Find tasks file in a directory
+ * 
+ * Searches for task files in this priority order:
+ * 1. Standard naming: project_*_adg-tasks.json
+ * 2. Any JSON file with valid task structure (has tasks array and projectCodename)
  */
 export function findTasksFile(managementDir: string): string | null {
-  const files = findFiles(managementDir, /^project_.*_adg-tasks\.json$/);
-  if (files.length === 0) {
-    return null;
+  // First try standard naming convention
+  const standardFiles = findFiles(managementDir, /^project_.*_adg-tasks\.json$/);
+  if (standardFiles.length > 0) {
+    return standardFiles[0];
   }
-  return files[0];
+
+  // Fallback: scan all JSON files for valid task structure
+  const allJsonFiles = findFiles(managementDir, /\.json$/);
+  for (const filePath of allJsonFiles) {
+    // Skip lock files and config files
+    if (filePath.endsWith('.lock') || filePath.includes('hierarchy-config')) {
+      continue;
+    }
+    
+    try {
+      const data = readJson<ProjectTasks>(filePath);
+      if (data && Array.isArray(data.tasks) && data.projectCodename) {
+        logger.info(`Found tasks file (non-standard name): ${filePath}`);
+        return filePath;
+      }
+    } catch {
+      // Not a valid tasks file, continue searching
+    }
+  }
+
+  return null;
 }
 
 /**
