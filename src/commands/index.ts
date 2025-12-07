@@ -207,30 +207,54 @@ async function createProjectStructure(
     `project_${options.projectCodename}_adg-tasks.json`
   );
 
-  // Hardcoded sample tasks for testing - fun Polish articles! 🇵🇱
+  // Hardcoded sample tasks for testing - 4 fun Polish articles! 🇵🇱🥚
   const sampleTasks: Array<Omit<Task, 'id' | 'retryCount' | 'maxRetries'>> = [
     {
       type: options.taskType,
-      title: 'Najlepsze przepisy na włoskie makarony',
-      description: 'Napisz artykuł po polsku o 5 najlepszych przepisach na włoskie makarony. Opisz historię każdego dania, składniki i sposób przygotowania. Styl: przyjazny i apetyczny.',
+      title: 'Jak koty podbijają internet',
+      description: 'Napisz zabawny artykuł po polsku o fenomenie kotów w internecie. Opisz słynne koty-gwiazdy (Grumpy Cat, Keyboard Cat, Nyan Cat), wyjaśnij dlaczego ludzie kochają kotocontent, i dodaj statystyki o miliardach wyświetleń. Zakończ teorią spiskową, że koty celowo manipulują algorytmami.',
       status: 'pending',
       params: { 
         language: 'polski',
-        wordCount: 800,
-        tone: 'przyjazny, kulinarny',
-        keywords: 'makaron, Włochy, przepisy, carbonara, bolognese'
+        wordCount: 700,
+        tone: 'humorystyczny, z przymrużeniem oka',
+        keywords: 'koty, internet, memy, viral, Grumpy Cat, social media'
       },
     },
     {
       type: options.taskType,
-      title: 'Dlaczego AI jest lepsza od ludzi w szachach',
-      description: 'Napisz humorystyczny artykuł po polsku o wyższości sztucznej inteligencji nad ludźmi w grze w szachy. Możesz żartować z ludzkiej niedoskonałości, ale z szacunkiem. Na końcu przyznaj, że ludzie są fajni.',
+      title: 'Przewodnik po najdziwniejszych sportach świata',
+      description: 'Napisz artykuł po polsku o 5 najdziwniejszych dyscyplinach sportowych na świecie. Uwzględnij: rzucanie telefonami komórkowymi (Finlandia), wyścigi z żonami (Estonia), bieg z serem (UK), ekstremalne prasowanie (UK), szachy bokserskie. Opisz zasady i historię każdej dyscypliny.',
+      status: 'pending',
+      params: { 
+        language: 'polski',
+        wordCount: 800,
+        tone: 'informacyjny ale lekki',
+        keywords: 'dziwne sporty, konkurencje, świat, Finlandia, Estonia'
+      },
+    },
+    {
+      type: options.taskType,
+      title: 'Dlaczego programiści piją tyle kawy',
+      description: 'Napisz artykuł po polsku wyjaśniający kulturę picia kawy wśród programistów. Opisz stereotypy, prawdziwe powody (noc przed deadline), ulubione kawy dev-ów, kawowe memy i żarty branżowe. Dodaj sekcję "Jak przeżyć dzień bez kawy (spoiler: nie da się)".',
       status: 'pending',
       params: { 
         language: 'polski',
         wordCount: 600,
-        tone: 'humorystyczny, lekko ironiczny',
-        keywords: 'AI, szachy, Deep Blue, Kasparov, sztuczna inteligencja'
+        tone: 'samokrytyczny, żartobliwy, insider',
+        keywords: 'programiści, kawa, IT, kofeina, debug, deadline'
+      },
+    },
+    {
+      type: options.taskType,
+      title: 'Kosmiczne rekordy Guinnessa',
+      description: 'Napisz fascynujący artykuł po polsku o najciekawszych rekordach ustanowionych w kosmosie. Uwzględnij: najdłuższy pobyt (Walerij Polakow), najwięcej spacerów kosmicznych, pierwszy ślub w kosmosie, najdalsza podróż człowieka, najdłuższy lot bez przerwy. Dodaj ciekawostki o życiu codziennym astronautów.',
+      status: 'pending',
+      params: { 
+        language: 'polski',
+        wordCount: 750,
+        tone: 'fascynujący, edukacyjny',
+        keywords: 'kosmos, rekordy, astronauci, ISS, NASA, Guinness'
       },
     },
   ];
