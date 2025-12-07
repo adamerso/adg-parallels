@@ -73,6 +73,16 @@
         "command": "adg-parallels.executeTask",
         "title": "ADG: Execute Task (AI)",
         "category": "ADG-Parallels"
+      },
+      {
+        "command": "adg-parallels.aggregateOutputs",
+        "title": "ADG: Aggregate Subtask Outputs",
+        "category": "ADG-Parallels"
+      },
+      {
+        "command": "adg-parallels.generateReport",
+        "title": "ADG: Generate Status Report",
+        "category": "ADG-Parallels"
       }
     ],
     "configuration": {

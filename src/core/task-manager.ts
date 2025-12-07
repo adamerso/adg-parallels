@@ -449,6 +449,58 @@ export class TaskManager {
       return released;
     }) ?? 0;
   }
+
+  /**
+   * Get subtasks for a parent task
+   */
+  async getSubtasks(parentTaskId: number): Promise<Task[]> {
+    const tasks = await this.getAllTasks();
+    return tasks.filter(t => t.parentTaskId === parentTaskId);
+  }
+
+  /**
+   * Check if all subtasks of a parent task are completed
+   */
+  async areSubtasksComplete(parentTaskId: number): Promise<boolean> {
+    const subtasks = await this.getSubtasks(parentTaskId);
+    if (subtasks.length === 0) {
+      return false;
+    }
+    return subtasks.every(t => 
+      t.status === 'task_completed' || 
+      t.status === 'audit_passed'
+    );
+  }
+
+  /**
+   * Get aggregated output paths for subtasks
+   */
+  async getSubtaskOutputs(parentTaskId: number): Promise<string[]> {
+    const subtasks = await this.getSubtasks(parentTaskId);
+    return subtasks
+      .filter(t => t.outputFile)
+      .map(t => t.outputFile as string);
+  }
+
+  /**
+   * Update parent task with subtask IDs
+   */
+  async linkSubtasksToParent(parentTaskId: number, subtaskIds: number[]): Promise<boolean> {
+    return await withLock(this.tasksFilePath, () => {
+      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      if (!data) {
+        return false;
+      }
+
+      const parentTask = data.tasks.find(t => t.id === parentTaskId);
+      if (!parentTask) {
+        return false;
+      }
+
+      parentTask.subtaskIds = subtaskIds;
+      return this.saveSync(data);
+    }) ?? false;
+  }
 }
 
 /**

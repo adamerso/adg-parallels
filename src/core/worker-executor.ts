@@ -384,7 +384,14 @@ export class WorkerExecutor {
         }))
       );
 
+      // Link subtask IDs back to parent task
+      if (addedTasks.length > 0) {
+        const subtaskIds = addedTasks.map(t => t.id);
+        await this.taskManager.linkSubtasksToParent(parentTask.id, subtaskIds);
+      }
+
       logger.info(`Added ${addedTasks.length} subtasks from meta-task #${parentTask.id}`);
+      return addedTasks.length;
       return addedTasks.length;
 
     } catch (error) {

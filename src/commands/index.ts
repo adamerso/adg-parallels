@@ -21,6 +21,15 @@ import {
   executeTaskWithProgress 
 } from '../core/worker-executor';
 import { createBuiltInAdapters } from '../core/adapter-loader';
+import { 
+  aggregateSubtaskOutputs, 
+  getAggregatedOutputPath,
+  MergeStrategy 
+} from '../core/output-aggregator';
+import {
+  generateAndSaveManagerReport,
+  formatManagerReportAsMarkdown
+} from '../core/upward-reporting';
 import { ensureDir, pathExists, writeJson, readJson } from '../utils/file-operations';
 import { logger } from '../utils/logger';
 
@@ -946,6 +955,162 @@ export async function executeTask(autoMode?: 'all' | 'next'): Promise<void> {
 }
 
 // =============================================================================
+// COMMAND: Aggregate Outputs
+// =============================================================================
+
+/**
+ * Aggregate outputs from subtasks of a mega-task
+ */
+export async function aggregateOutputs(): Promise<void> {
+  const roleInfo = detectRole();
+  if (!roleInfo) {
+    vscode.window.showErrorMessage('Could not detect workspace role');
+    return;
+  }
+
+  // Get management directory
+  let managementDir = roleInfo.paths.managementDir;
+  if (!managementDir && roleInfo.role === 'ceo') {
+    const potentialMgmtDir = path.join(roleInfo.paths.adgRoot, 'management');
+    if (pathExists(potentialMgmtDir)) {
+      managementDir = potentialMgmtDir;
+    }
+  }
+
+  if (!managementDir) {
+    vscode.window.showErrorMessage('Management directory not found.');
+    return;
+  }
+
+  // Find tasks file
+  const tasksFile = findTasksFile(managementDir);
+  if (!tasksFile) {
+    vscode.window.showErrorMessage('No tasks file found.');
+    return;
+  }
+
+  const taskManager = new TaskManager(tasksFile);
+  const allTasks = await taskManager.getAllTasks();
+
+  // Find mega-tasks (tasks with subtasks)
+  const megaTasks = allTasks.filter(t => (t.subtaskIds?.length ?? 0) > 0);
+
+  if (megaTasks.length === 0) {
+    vscode.window.showInformationMessage('No mega-tasks with subtasks found.');
+    return;
+  }
+
+  // Let user select which mega-task to aggregate
+  const selected = await vscode.window.showQuickPick(
+    megaTasks.map(t => ({
+      label: `#${t.id}: ${t.title}`,
+      description: `${t.subtaskIds?.length ?? 0} subtasks`,
+      task: t,
+    })),
+    { placeHolder: 'Select mega-task to aggregate outputs' }
+  );
+
+  if (!selected) {
+    return;
+  }
+
+  // Select merge strategy
+  const strategyChoice = await vscode.window.showQuickPick([
+    { label: 'Concatenate', value: 'concatenate' as MergeStrategy, description: 'Simple text concatenation' },
+    { label: 'Markdown Sections', value: 'markdown-sections' as MergeStrategy, description: 'Organized markdown with headers' },
+    { label: 'JSON Array', value: 'json-array' as MergeStrategy, description: 'Merge as JSON array' },
+  ], { placeHolder: 'Select merge strategy' });
+
+  if (!strategyChoice) {
+    return;
+  }
+
+  // Determine output path
+  const outputDir = path.join(path.dirname(path.dirname(tasksFile)), 'output');
+  const outputPath = getAggregatedOutputPath(outputDir, selected.task);
+
+  // Aggregate
+  const result = await aggregateSubtaskOutputs(taskManager, selected.task.id, {
+    strategy: strategyChoice.value,
+    includeHeaders: true,
+    outputPath,
+  });
+
+  if (result.success) {
+    vscode.window.showInformationMessage(
+      `✅ Aggregated ${result.totalFiles} outputs to ${result.outputPath}`
+    );
+    
+    // Open the aggregated file
+    if (result.outputPath) {
+      const doc = await vscode.workspace.openTextDocument(result.outputPath);
+      await vscode.window.showTextDocument(doc);
+    }
+  } else {
+    vscode.window.showErrorMessage(`Failed to aggregate: ${result.error}`);
+  }
+}
+
+// =============================================================================
+// COMMAND: Generate Status Report
+// =============================================================================
+
+/**
+ * Generate a status report for the current project
+ */
+export async function generateReport(): Promise<void> {
+  const roleInfo = detectRole();
+  if (!roleInfo) {
+    vscode.window.showErrorMessage('Could not detect workspace role');
+    return;
+  }
+
+  // Get management directory
+  let managementDir = roleInfo.paths.managementDir;
+  if (!managementDir && roleInfo.role === 'ceo') {
+    const potentialMgmtDir = path.join(roleInfo.paths.adgRoot, 'management');
+    if (pathExists(potentialMgmtDir)) {
+      managementDir = potentialMgmtDir;
+    }
+  }
+
+  if (!managementDir) {
+    vscode.window.showErrorMessage('Management directory not found.');
+    return;
+  }
+
+  // Find tasks file
+  const tasksFile = findTasksFile(managementDir);
+  if (!tasksFile) {
+    vscode.window.showErrorMessage('No tasks file found.');
+    return;
+  }
+
+  const taskManager = new TaskManager(tasksFile);
+  
+  // Generate report
+  const report = await generateAndSaveManagerReport(
+    managementDir,
+    taskManager,
+    roleInfo.workerId || 'manager'
+  );
+
+  // Format as markdown
+  const markdown = formatManagerReportAsMarkdown(report);
+
+  // Show in a new document
+  const doc = await vscode.workspace.openTextDocument({
+    content: markdown,
+    language: 'markdown',
+  });
+  await vscode.window.showTextDocument(doc);
+
+  vscode.window.showInformationMessage(
+    `📊 Report generated: ${report.stats.completed}/${report.stats.total} tasks completed`
+  );
+}
+
+// =============================================================================
 // REGISTER ALL COMMANDS
 // =============================================================================
 
@@ -958,6 +1123,8 @@ export function registerCommands(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('adg-parallels.claimNextTask', claimNextTask),
     vscode.commands.registerCommand('adg-parallels.completeTask', completeCurrentTask),
     vscode.commands.registerCommand('adg-parallels.executeTask', executeTask),
+    vscode.commands.registerCommand('adg-parallels.aggregateOutputs', aggregateOutputs),
+    vscode.commands.registerCommand('adg-parallels.generateReport', generateReport),
   );
 
   logger.info('Commands registered');

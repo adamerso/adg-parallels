@@ -193,9 +193,10 @@
 - ⬜ Failure handling (partial completion)
 
 ### 5.4 Merge & Aggregate
-- ⬜ Concatenate outputs
-- ⬜ Summarize outputs
-- ⬜ Custom merge strategies
+- ✅ Concatenate outputs (output-aggregator.ts)
+- ✅ Markdown sections merge
+- ✅ JSON array merge
+- ✅ ADG: Aggregate Subtask Outputs command
 
 ---
 
@@ -242,9 +243,10 @@
 - ✅ Enforcement in worker spawning
 
 ### 7.3 Upward Reporting
-- ⬜ Worker reports to TL
-- ⬜ TL aggregates and reports to Manager
-- ⬜ Manager reports to CEO
+- ✅ Worker status reports (status-report.json)
+- ✅ Manager report generation
+- ✅ Report formatting as Markdown
+- ✅ ADG: Generate Status Report command
 
 ---
 
