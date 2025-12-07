@@ -395,10 +395,29 @@ Good luck, worker! 🚀
     worker.heartbeat.status = 'unresponsive';
     writeJson(worker.heartbeatPath, worker.heartbeat);
 
-    // Auto-restart if configured (future: check hierarchy config)
+    // Auto-restart after 3 consecutive failures
     if (worker.heartbeat.consecutiveFailures >= 3) {
-      logger.warn(`Worker ${worker.workerId} failed too many times, consider manual intervention`);
-      // Could trigger auto-restart here
+      logger.warn(`Worker ${worker.workerId} failed 3+ times, attempting restart...`);
+      
+      // Try to respawn the worker
+      const success = await this.spawnWorker(worker);
+      if (success) {
+        // Reset failure count on successful respawn
+        worker.heartbeat.consecutiveFailures = 0;
+        worker.heartbeat.status = 'idle';
+        writeJson(worker.heartbeatPath, worker.heartbeat);
+        logger.info(`Worker ${worker.workerId} respawned successfully`);
+        
+        // Notify CEO via VS Code notification
+        vscode.window.showWarningMessage(
+          `🔄 Worker ${worker.workerId} was unresponsive and has been restarted.`
+        );
+      } else {
+        logger.error(`Failed to respawn worker ${worker.workerId}`);
+        vscode.window.showErrorMessage(
+          `❌ Worker ${worker.workerId} is unresponsive and could not be restarted.`
+        );
+      }
     }
   }
 

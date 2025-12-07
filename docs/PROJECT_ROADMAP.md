@@ -214,13 +214,13 @@
 - ✅ Detecting faulty (3+ failures)
 
 ### 6.3 Self-Healing
-- ⬜ Auto-restart unresponsive workers
+- ✅ Auto-restart unresponsive workers (after 3 failures)
 - ✅ Task reassignment to queue (releaseWorkerTasks)
 - ⬜ Kill zombie windows (by PID)
-- ⬜ Open new worker window
+- ✅ Open new worker window (spawnWorker)
 
 ### 6.4 Alerting
-- ⬜ CEO notification on faulty worker
+- ✅ CEO notification on faulty worker (VS Code warning)
 - ✅ Log all restarts (logger)
 - ⬜ Health report in dashboard
 
