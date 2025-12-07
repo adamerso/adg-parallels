@@ -54,9 +54,9 @@
 - ✅ Race condition handling (file locking)
 
 ### 1.4 Worker Lifecycle
-- ⬜ Automatic Copilot launch on start (if worker) - BLOCKED (needs VS Code Chat API research)
-- ⬜ "Copilot idle" detection (finished responding) - BLOCKED
-- ⬜ Automatic resume with continue-prompt - BLOCKED
+- ✅ Automatic LM execution via vscode.lm API (lm-client.ts)
+- ✅ Task completion detection via criteria + signal parsing
+- ✅ Continue prompt support (renderTaskContinuePrompt)
 - ⬜ `worker-all-task-disposed.md` detection - TODO
 - ⬜ Window closing after disposed - TODO
 - ✅ Heartbeat updates (every 30s)
@@ -98,30 +98,44 @@
 
 ---
 
-## 📍 Phase 3: Adapter System
+## 📍 Phase 3: Adapter System (DONE ✅)
 
 **Goal**: Modular system for handling different task types
 
 ### 3.1 Adapter Loader
-- ⬜ `adapter-loader.ts` - loading adapters from JSON files
-- ⬜ Adapter schema validation
-- ⬜ Loaded adapter caching
+- ✅ `adapter-loader.ts` - loading adapters from JSON files
+- ✅ Adapter schema validation
+- ✅ Loaded adapter caching
 
 ### 3.2 Template Rendering
-- ⬜ Mustache/Handlebars integration
-- ⬜ Prompt rendering with `{{task.xxx}}` placeholders
-- ⬜ Custom helpers (date formatting, slugify, etc.)
+- ✅ Mustache integration (prompt-renderer.ts)
+- ✅ Prompt rendering with `{{task.xxx}}` placeholders
+- ✅ Custom helpers (slugify, formatDate, truncate)
 
 ### 3.3 Built-in Adapters
-- ⬜ `generic.adapter.json` - default adapter
-- ⬜ `article-generation.adapter.json`
+- ✅ `generic.adapter.json` - default adapter
+- ✅ `article-generation.adapter.json`
+- ✅ `task-splitter.adapter.json` (meta-adapter)
 - ⬜ `translation.adapter.json`
 - ⬜ `code-audit.adapter.json`
 
 ### 3.4 Completion Criteria
-- ⬜ Checking if output meets criteria
-- ⬜ Length validation, regex, file existence
-- ⬜ Auto-retry if not met
+- ✅ Checking if output meets criteria
+- ✅ Length validation, regex patterns
+- ✅ Completion signal parsing ("TASK COMPLETED")
+
+### 3.5 LM Client (NEW)
+- ✅ `lm-client.ts` - wrapper for vscode.lm API
+- ✅ Model selection by vendor/family
+- ✅ Streaming response support
+- ✅ Token counting and context window checking
+- ✅ Error handling (NoPermissions, NotFound, Blocked)
+
+### 3.6 Worker Executor (NEW)
+- ✅ `worker-executor.ts` - full task execution flow
+- ✅ Execute single task / Execute all loop
+- ✅ Progress callbacks and VS Code integration
+- ✅ Output saving and status updates
 
 ---
 
@@ -288,35 +302,42 @@
 | Phase | Estimated Time | Status |
 |-------|----------------|--------|
 | Phase 0 | 1-2 days | ✅ Done |
-| Phase 1 | 1-2 weeks | 🟨 ~70% done (blocked on Copilot automation) |
+| Phase 1 | 1-2 weeks | 🟨 ~90% done |
 | Phase 2 | 1 week | ⬜ |
-| Phase 3 | 1 week | ⬜ |
-| Phase 4 | 3-4 days | ⬜ |
-| Phase 5 | 1 week | ⬜ |
-| Phase 6 | 1 week | ⬜ (heartbeat core done) |
-| Phase 7 | 1-2 weeks | ⬜ |
+| Phase 3 | 1 week | ✅ Done |
+| Phase 4 | 3-4 days | 🟨 ~50% (statuses done, audit flow TODO) |
+| Phase 5 | 1 week | 🟨 ~30% (task-splitter adapter done) |
+| Phase 6 | 1 week | ✅ Done (heartbeat + monitoring) |
+| Phase 7 | 1-2 weeks | 🟨 ~30% (role detection done) |
 | Phase 8 | 1 week | ⬜ |
 
 *Timeline is tentative and depends on CEO availability and discovered technical challenges.*
 
 ---
 
-## 🔴 KNOWN BLOCKERS (December 2025)
+## ✅ RESOLVED BLOCKERS (December 2025)
 
-### 1. Automatic Copilot Launch and Control
-**Status**: BLOCKED - No public API
-**Impact**: Worker automation (1.4) cannot fully work
-**Workaround Options**:
-1. Manual prompt copy-paste (MVP acceptable)
-2. Use `workbench.action.chat.open` - needs testing
-3. File-based signaling (Copilot reads instructions from file)
+### 1. Automatic LM Execution ✅ SOLVED
+**Status**: RESOLVED via `vscode.lm` API
+**Solution**: Using `vscode.lm.selectChatModels()` and `model.sendRequest()` to programmatically send prompts and receive responses.
+**Implementation**: `src/core/lm-client.ts`
 
-### 2. Copilot Idle Detection  
-**Status**: BLOCKED - No public API
-**Impact**: Cannot auto-continue tasks
-**Workaround**: Time-based heuristics or file watcher on output
+### 2. Task Completion Detection ✅ SOLVED
+**Status**: RESOLVED via completion criteria
+**Solution**: 
+- Checking for "TASK COMPLETED" signal in output
+- Validation via regex patterns
+- Minimum output length checking
+**Implementation**: `src/core/prompt-renderer.ts` - `checkCompletionCriteria()`, `parseCompletionSignal()`
+
+## 🔴 REMAINING CHALLENGES
+
+### 1. Window Auto-Close
+**Status**: TODO
+**Impact**: Worker windows don't auto-close after all tasks done
+**Solution**: Implement file watcher for `worker-all-task-disposed.md`
 
 ---
 
-*Last updated: December 7, 2025 (Post-Audit)*
-*Version: 0.3 (with Adapters, Task Splitting, Heartbeat, and Audit Notes)*
+*Last updated: December 7, 2025 (Post-Implementation)*
+*Version: 0.4 (Adapter System + LM API Integration complete)*

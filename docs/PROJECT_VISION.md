@@ -159,11 +159,11 @@ This ensures **high availability** and fault tolerance.
 ## ✨ Key Features by Phase
 
 ### MVP (Phase 1)
-- [ ] Project provisioning - creating directory structure
-- [ ] Opening N VS Code windows as workers
-- [ ] Automatic Copilot start with prompt
-- [ ] Task completion detection and resume (continue prompt)
-- [ ] Status management in JSON
+- [x] Project provisioning - creating directory structure
+- [x] Opening N VS Code windows as workers
+- [x] Automatic AI task execution via LM API
+- [x] Task completion detection and criteria checking
+- [x] Status management in JSON
 - [ ] "No tasks" signaling and window closing
 
 ### Phase 2: Dashboard
@@ -171,31 +171,32 @@ This ensures **high availability** and fault tolerance.
 - [ ] Pause/Resume all workers
 - [ ] Configurable model per role
 
-### Phase 3: Adapters
-- [ ] Adapter loading system
-- [ ] Template rendering for prompts
-- [ ] Built-in adapters: generic, article, translation
-- [ ] Custom adapter support
+### Phase 3: Adapters ✅
+- [x] Adapter loading system (adapter-loader.ts)
+- [x] Template rendering for prompts (Mustache)
+- [x] Built-in adapters: generic, article-generation, task-splitter
+- [x] Custom adapter support (.adapter.json files)
+- [x] Completion criteria checking
 
 ### Phase 4: Audit Flow
-- [ ] Extended audit statuses
-- [ ] Auto-retry for failed tasks
+- [x] Extended audit statuses (in types)
+- [x] Auto-retry for failed tasks (task-manager.ts)
 - [ ] Audit rules configuration
 
 ### Phase 5: Task Splitting
-- [ ] Meta-tasks and automatic splitting
+- [x] Meta-tasks and task-splitter adapter
 - [ ] Split strategies (per-line, per-chunk, AI-driven)
 - [ ] Merge & aggregate results
 
 ### Phase 6: Health Monitoring
-- [ ] Heartbeat per worker
-- [ ] Auto-restart unresponsive workers
-- [ ] Faulty worker detection
+- [x] Heartbeat per worker
+- [x] Health monitoring (worker-lifecycle.ts)
+- [x] Faulty worker detection
 - [ ] CEO alerts
 
 ### Phase 7: Hierarchy
-- [ ] Team Leaders can delegate
-- [ ] Delegation depth limits
+- [x] Team Leaders role detection
+- [x] Delegation depth limits (hierarchy-config.json)
 - [ ] Upward reporting in hierarchy
 
 ### Phase 8+ (Future)
@@ -273,4 +274,4 @@ TBD. Proposals:
 ---
 
 *Document created: December 7, 2025*
-*Version: 0.2 (with Adapters, Task Splitting, and Heartbeat)*
+*Version: 0.3 (with LM API Integration and Adapter System implemented)*

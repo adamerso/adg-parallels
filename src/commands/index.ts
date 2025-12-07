@@ -7,7 +7,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { RoleInfo, ProjectConfig, Task, TaskStatus } from '../types';
+import { RoleInfo, ProjectConfig, Task, TaskStatus, WorkerConfig } from '../types';
 import { detectRole, canDelegate, getRoleDisplayInfo } from '../core/role-detector';
 import { TaskManager, createProjectTasks, findTasksFile } from '../core/task-manager';
 import { 
@@ -15,7 +15,13 @@ import {
   createManagerLifecycle,
   createWorkerLifecycle 
 } from '../core/worker-lifecycle';
-import { ensureDir, pathExists, writeJson } from '../utils/file-operations';
+import { 
+  WorkerExecutor, 
+  ExecutorConfig,
+  executeTaskWithProgress 
+} from '../core/worker-executor';
+import { createBuiltInAdapters } from '../core/adapter-loader';
+import { ensureDir, pathExists, writeJson, readJson } from '../utils/file-operations';
 import { logger } from '../utils/logger';
 
 // =============================================================================
@@ -617,6 +623,188 @@ export async function completeCurrentTask(): Promise<void> {
 }
 
 // =============================================================================
+// COMMAND: Execute Task (Worker - uses LM API)
+// =============================================================================
+
+/**
+ * Command for workers to execute a task using the Language Model API
+ */
+export async function executeTask(): Promise<void> {
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+  if (!workspaceFolder) {
+    vscode.window.showErrorMessage('No workspace folder open');
+    return;
+  }
+
+  const workspaceRoot = workspaceFolder.uri.fsPath;
+  const roleInfo = detectRole();
+  
+  if (!roleInfo) {
+    vscode.window.showErrorMessage('Could not detect workspace role');
+    return;
+  }
+
+  // Get worker config - either from worker directory or from current workspace
+  let workerConfig: WorkerConfig | null = null;
+  let tasksFile: string | null = null;
+  let adaptersDir: string;
+
+  if (roleInfo.role === 'worker' || roleInfo.role === 'teamlead') {
+    // Worker mode - load from worker.json
+    const workerConfigPath = path.join(workspaceRoot, 'worker.json');
+    workerConfig = readJson<WorkerConfig>(workerConfigPath);
+    
+    if (!workerConfig) {
+      vscode.window.showErrorMessage('Worker config not found.');
+      return;
+    }
+
+    tasksFile = workerConfig.paths.tasksFile;
+    adaptersDir = path.join(path.dirname(tasksFile), '..', 'adapters');
+  } else if (roleInfo.paths.managementDir) {
+    // Manager/CEO mode - can also execute tasks manually
+    tasksFile = findTasksFile(roleInfo.paths.managementDir);
+    adaptersDir = roleInfo.paths.adaptersDir || path.join(roleInfo.paths.adgRoot, 'adapters');
+    
+    // Create a temporary worker config
+    workerConfig = {
+      workerId: `${roleInfo.role}_manual`,
+      role: roleInfo.role,
+      parentRole: 'ceo',
+      paths: {
+        tasksFile: tasksFile || '',
+        attachments: '',
+        outputDir: path.join(roleInfo.paths.adgRoot, 'output'),
+        workerRoot: workspaceRoot,
+      },
+      createdAt: new Date().toISOString(),
+      instructionsVersion: '1.0',
+    };
+  } else {
+    vscode.window.showErrorMessage('No ADG-Parallels project found. Please provision a project first.');
+    return;
+  }
+
+  if (!tasksFile || !pathExists(tasksFile)) {
+    vscode.window.showErrorMessage('Tasks file not found.');
+    return;
+  }
+
+  // Initialize task manager
+  const taskManager = new TaskManager(tasksFile);
+  const stats = await taskManager.getStats();
+
+  if (!stats || stats.pending === 0) {
+    vscode.window.showInformationMessage('No pending tasks available.');
+    return;
+  }
+
+  // Ask user what to do
+  const action = await vscode.window.showQuickPick([
+    { label: '$(play) Execute Next Task', value: 'next', description: `${stats.pending} tasks pending` },
+    { label: '$(list-unordered) Select Task to Execute', value: 'select' },
+    { label: '$(run-all) Execute All Pending Tasks', value: 'all', description: 'Run in loop until done' },
+  ], {
+    placeHolder: 'What would you like to do?',
+  });
+
+  if (!action) {
+    return;
+  }
+
+  // Ensure adapters exist
+  createBuiltInAdapters(adaptersDir);
+
+  // Create executor config
+  const executorConfig: ExecutorConfig = {
+    workerId: workerConfig!.workerId,
+    role: workerConfig!.role,
+    depth: roleInfo.depth,
+    adaptersDir,
+    outputDir: workerConfig!.paths.outputDir,
+    projectCodename: 'project', // TODO: get from config
+    includeStatute: true,
+    maxRetries: 3,
+  };
+
+  // Create executor with callbacks
+  const executor = new WorkerExecutor(executorConfig, taskManager, {
+    onTaskStart: (task) => {
+      logger.info(`Starting task #${task.id}: ${task.title}`);
+    },
+    onProgress: (task, message) => {
+      logger.debug(`Task #${task.id}: ${message}`);
+    },
+    onTaskComplete: (result) => {
+      if (result.success) {
+        vscode.window.showInformationMessage(
+          `✅ Task #${result.task.id} completed in ${Math.round(result.durationMs / 1000)}s`
+        );
+      }
+    },
+    onTaskError: (task, error) => {
+      vscode.window.showErrorMessage(`❌ Task #${task.id} failed: ${error}`);
+    },
+    onAllTasksComplete: () => {
+      vscode.window.showInformationMessage('🎉 All tasks completed!');
+    },
+  });
+
+  // Initialize executor
+  const initialized = await executor.initialize();
+  if (!initialized) {
+    vscode.window.showErrorMessage(
+      'Failed to initialize Language Model. Make sure you have GitHub Copilot enabled.'
+    );
+    return;
+  }
+
+  // Execute based on action
+  switch (action.value) {
+    case 'next': {
+      const result = await executor.executeNextTask();
+      if (!result) {
+        vscode.window.showInformationMessage('No more pending tasks.');
+      }
+      break;
+    }
+    
+    case 'select': {
+      const pendingTasks = await taskManager.getTasksByStatus('pending');
+      const selected = await vscode.window.showQuickPick(
+        pendingTasks.map(t => ({
+          label: `#${t.id}: ${t.title}`,
+          description: t.type,
+          detail: t.description,
+          task: t,
+        })),
+        { placeHolder: 'Select a task to execute' }
+      );
+      
+      if (selected) {
+        // Claim the task first
+        await taskManager.claimNextTask(workerConfig!.workerId);
+        await executor.executeTask(selected.task);
+      }
+      break;
+    }
+    
+    case 'all': {
+      const confirm = await vscode.window.showWarningMessage(
+        `This will execute all ${stats.pending} pending tasks. Continue?`,
+        'Yes, Execute All',
+        'Cancel'
+      );
+      
+      if (confirm === 'Yes, Execute All') {
+        await executor.runLoop();
+      }
+      break;
+    }
+  }
+}
+
+// =============================================================================
 // REGISTER ALL COMMANDS
 // =============================================================================
 
@@ -628,6 +816,7 @@ export function registerCommands(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('adg-parallels.importTasksCsv', importTasksFromCsv),
     vscode.commands.registerCommand('adg-parallels.claimNextTask', claimNextTask),
     vscode.commands.registerCommand('adg-parallels.completeTask', completeCurrentTask),
+    vscode.commands.registerCommand('adg-parallels.executeTask', executeTask),
   );
 
   logger.info('Commands registered');
