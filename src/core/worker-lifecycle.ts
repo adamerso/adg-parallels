@@ -301,9 +301,56 @@ Good luck, worker! 🚀
    */
   async spawnWorker(workerInfo: WorkerInfo): Promise<boolean> {
     try {
-      const uri = vscode.Uri.file(workerInfo.workerDir);
-      await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
-      logger.info(`Spawned worker window: ${workerInfo.workerId}`);
+      // Get the extension path for development mode
+      const extensionPath = vscode.extensions.getExtension('adg-parallels.adg-parallels')?.extensionPath;
+      
+      if (extensionPath) {
+        // Development mode - launch with extensionDevelopmentPath
+        // Use child_process to spawn VS Code with the extension loaded
+        const { spawn } = require('child_process');
+        
+        // Find the VS Code executable
+        const codePath = process.execPath; // Current VS Code instance path
+        const codeDir = path.dirname(codePath);
+        
+        // On Windows, use the code.cmd or Code.exe
+        let codeExe: string;
+        if (process.platform === 'win32') {
+          // Try to find code executable in parent directory
+          codeExe = path.join(codeDir, '..', 'bin', 'code-insiders.cmd');
+          if (!fs.existsSync(codeExe)) {
+            codeExe = path.join(codeDir, '..', 'bin', 'code.cmd');
+          }
+          if (!fs.existsSync(codeExe)) {
+            // Fallback to using process.execPath directly
+            codeExe = codePath;
+          }
+        } else {
+          codeExe = 'code';
+        }
+
+        const args = [
+          workerInfo.workerDir,
+          '--new-window',
+          '--extensionDevelopmentPath=' + extensionPath,
+        ];
+
+        logger.info(`Spawning worker with command: ${codeExe} ${args.join(' ')}`);
+        
+        spawn(codeExe, args, {
+          detached: true,
+          stdio: 'ignore',
+          shell: true,
+        }).unref();
+        
+        logger.info(`Spawned worker window (dev mode): ${workerInfo.workerId}`);
+      } else {
+        // Production mode - extension is installed, just open folder
+        const uri = vscode.Uri.file(workerInfo.workerDir);
+        await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+        logger.info(`Spawned worker window: ${workerInfo.workerId}`);
+      }
+      
       return true;
     } catch (error) {
       logger.error(`Failed to spawn worker: ${workerInfo.workerId}`, error);

@@ -31,7 +31,11 @@
     "multi-agent",
     "ejajka"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "workspaceContains:.adg-parallels",
+    "workspaceContains:worker.json",
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
