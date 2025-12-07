@@ -76,8 +76,7 @@
 - ✅ Automatic LM execution via vscode.lm API (lm-client.ts)
 - ✅ Task completion detection via criteria + signal parsing
 - ✅ Continue prompt support (renderTaskContinuePrompt)
-- ⬜ `worker-all-task-disposed.md` detection - TODO
-- ⬜ Window closing after disposed - TODO
+- ✅ Auto-close worker windows (workerAutoClose setting)
 - ✅ Heartbeat updates (every 30s)
 - ✅ Health monitoring (every 15s)
 - ✅ Worker provisioning and spawning
@@ -135,8 +134,8 @@
 - ✅ `generic.adapter.json` - default adapter
 - ✅ `article-generation.adapter.json`
 - ✅ `task-splitter.adapter.json` (meta-adapter)
-- ⬜ `translation.adapter.json`
-- ⬜ `code-audit.adapter.json`
+- ✅ `translation.adapter.json`
+- ✅ `code-audit.adapter.json`
 
 ### 3.4 Completion Criteria
 - ✅ Checking if output meets criteria

@@ -402,6 +402,198 @@ When done: "TASK COMPLETED"`,
 }
 
 /**
+ * Get the built-in translation adapter
+ */
+export function getBuiltInTranslationAdapter(): TaskAdapter {
+  return {
+    adapterId: 'translation',
+    version: '1.0',
+    displayName: 'Translation',
+    prompts: {
+      taskStart: `# Translation Task
+
+You are an ADG-Parallels Worker specializing in translation.
+
+## Task #{{task.id}}: {{task.title}}
+
+### Source Language
+{{task.params.sourceLanguage}}
+
+### Target Language  
+{{task.params.targetLanguage}}
+
+### Text to Translate
+{{task.description}}
+
+{{#task.params.context}}
+### Context/Domain
+{{task.params.context}}
+{{/task.params.context}}
+
+{{#task.params.tone}}
+### Desired Tone
+{{task.params.tone}}
+{{/task.params.tone}}
+
+## Instructions
+1. Translate the text accurately while preserving meaning
+2. Adapt idioms and cultural references appropriately
+3. Maintain the original tone and style
+4. If technical terms exist, translate them correctly for the domain
+
+## Output Format
+Provide the translation in clean text format.
+
+When done, end with: "TASK COMPLETED"`,
+      taskContinue: `# Continue Translation
+
+Please continue translating Task #{{task.id}}: {{task.title}}
+
+Pick up where you left off.
+
+When finished, end with: "TASK COMPLETED"`,
+      auditPrompt: `# Translation Review
+
+Review the translation for Task #{{task.id}}: {{task.title}}
+
+Check for:
+- Accuracy of translation
+- Natural language flow
+- Proper grammar in target language
+- Preserved meaning and tone
+
+Respond with "AUDIT PASSED" or "AUDIT FAILED: [specific issues]".`
+    },
+    completionCriteria: {
+      minOutputLength: 100,
+      validationRegex: 'TASK COMPLETED',
+    },
+    outputProcessing: {
+      saveAs: 'output/translations/{{task.id}}_{{task.params.targetLanguage}}_{{task.title_slug}}.md',
+    },
+    statusFlow: ['pending', 'processing', 'task_completed', 'audit_in_progress', 'audit_passed'],
+    retryableStatuses: ['pending', 'audit_failed'],
+    maxRetries: 3,
+    isMeta: false,
+    createsSubtasks: false,
+    requiresManagerRole: false,
+  };
+}
+
+/**
+ * Get the built-in code audit adapter
+ */
+export function getBuiltInCodeAuditAdapter(): TaskAdapter {
+  return {
+    adapterId: 'code-audit',
+    version: '1.0',
+    displayName: 'Code Audit',
+    prompts: {
+      taskStart: `# Code Audit Task
+
+You are an ADG-Parallels Worker specializing in code review and security audits.
+
+## Task #{{task.id}}: {{task.title}}
+
+### File/Code to Audit
+{{task.description}}
+
+{{#task.params.filePath}}
+### File Path
+{{task.params.filePath}}
+{{/task.params.filePath}}
+
+{{#task.params.language}}
+### Programming Language
+{{task.params.language}}
+{{/task.params.language}}
+
+{{#task.params.focusAreas}}
+### Focus Areas
+{{task.params.focusAreas}}
+{{/task.params.focusAreas}}
+
+## Audit Checklist
+Please analyze the code for:
+
+### 1. Security Issues
+- SQL injection, XSS, CSRF vulnerabilities
+- Hardcoded secrets or credentials
+- Insecure dependencies
+- Input validation issues
+
+### 2. Code Quality
+- Code duplication
+- Complex/nested logic
+- Missing error handling
+- Poor naming conventions
+
+### 3. Performance
+- Inefficient algorithms
+- Memory leaks
+- Unnecessary computations
+- N+1 queries
+
+### 4. Best Practices
+- SOLID principles adherence
+- Design pattern usage
+- Documentation completeness
+- Test coverage considerations
+
+## Output Format
+Provide your audit report in this structure:
+
+## Summary
+[Brief overview of findings]
+
+## Critical Issues 🔴
+[List critical security/bug issues]
+
+## Warnings 🟡
+[List warnings and potential issues]
+
+## Suggestions 🔵
+[List improvement suggestions]
+
+## Positive Notes ✅
+[List good practices found]
+
+When done, end with: "TASK COMPLETED"`,
+      taskContinue: `# Continue Code Audit
+
+Please continue the code audit for Task #{{task.id}}: {{task.title}}
+
+Continue your analysis from where you left off.
+
+When finished, end with: "TASK COMPLETED"`,
+      auditPrompt: `# Audit Review
+
+Review the code audit report for Task #{{task.id}}: {{task.title}}
+
+Check if:
+- All major areas were covered
+- Findings are accurate and actionable
+- Severity levels are appropriate
+
+Respond with "AUDIT PASSED" or "AUDIT FAILED: [specific issues]".`
+    },
+    completionCriteria: {
+      minOutputLength: 300,
+      validationRegex: 'TASK COMPLETED',
+    },
+    outputProcessing: {
+      saveAs: 'output/audits/{{task.id}}_audit_{{task.title_slug}}.md',
+    },
+    statusFlow: ['pending', 'processing', 'task_completed', 'audit_in_progress', 'audit_passed'],
+    retryableStatuses: ['pending', 'audit_failed'],
+    maxRetries: 2,
+    isMeta: false,
+    createsSubtasks: false,
+    requiresManagerRole: false,
+  };
+}
+
+/**
  * Create built-in adapters in the adapters directory
  */
 export function createBuiltInAdapters(adaptersDir: string): void {
@@ -413,6 +605,8 @@ export function createBuiltInAdapters(adaptersDir: string): void {
     { id: 'generic', adapter: getBuiltInGenericAdapter() },
     { id: 'article-generation', adapter: getBuiltInArticleAdapter() },
     { id: 'task-splitter', adapter: getBuiltInTaskSplitterAdapter() },
+    { id: 'translation', adapter: getBuiltInTranslationAdapter() },
+    { id: 'code-audit', adapter: getBuiltInCodeAuditAdapter() },
   ];
 
   for (const { id, adapter } of adapters) {
