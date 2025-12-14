@@ -5,9 +5,12 @@
  * This is the heart of task coordination between workers.
  * 
  * v0.3.0: Added pipeline stage support for multi-stage task execution.
+ * v0.3.7: Added XML format support (tasks.xml)
  */
 
 import * as path from 'path';
+import * as fs from 'fs';
+import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 import { 
   Task, 
   TaskStatus, 
@@ -34,10 +37,12 @@ import { isClaimableStage, getNextWorkingStage } from './pipeline-engine';
 export class TaskManager {
   private tasksFilePath: string;
   private adapter?: PipelineAdapter;
+  private isXmlFormat: boolean;
 
   constructor(tasksFilePath: string, adapter?: PipelineAdapter) {
     this.tasksFilePath = tasksFilePath;
     this.adapter = adapter;
+    this.isXmlFormat = tasksFilePath.endsWith('.xml');
   }
 
   /**
@@ -62,20 +67,174 @@ export class TaskManager {
   }
 
   /**
-   * Load the project tasks file
+   * Load the project tasks file (supports both XML and JSON)
    */
   async load(): Promise<ProjectTasks | null> {
     return await withLock(this.tasksFilePath, () => {
-      return readJson<ProjectTasks>(this.tasksFilePath);
+      if (this.isXmlFormat) {
+        return this.loadXml();
+      }
+      return this.loadSync();
     });
   }
 
   /**
-   * Save the project tasks file
+   * Load tasks from XML format
+   */
+  private loadXml(): ProjectTasks | null {
+    if (!pathExists(this.tasksFilePath)) {
+      return null;
+    }
+    
+    try {
+      const xmlContent = fs.readFileSync(this.tasksFilePath, 'utf8');
+      const parser = new XMLParser({
+        ignoreAttributes: false,
+        attributeNamePrefix: '@_',
+        parseTagValue: true,
+        trimValues: true,
+        isArray: (name) => ['task'].includes(name),
+      });
+      
+      const parsed = parser.parse(xmlContent);
+      const tasksRoot = parsed.tasks || {};
+      const metadata = tasksRoot.metadata || {};
+      const taskList = tasksRoot.task_list?.task || tasksRoot.task || [];
+      
+      // Convert XML structure to ProjectTasks
+      const tasks: Task[] = (Array.isArray(taskList) ? taskList : [taskList])
+        .filter(Boolean)
+        .map((t: any, idx: number) => ({
+          id: parseInt(t['@_id'] || t.id || String(idx + 1)),
+          title: t.title || '',
+          type: t.type || 'generic',
+          status: (t['@_status'] || t.status || 'pending') as TaskStatus,
+          description: t.description || '',
+          assignedWorker: t.assigned_worker || t['assigned-worker'] || undefined,
+          startedAt: t.started_at || t['started-at'] || undefined,
+          completedAt: t.completed_at || t['completed-at'] || undefined,
+          retryCount: parseInt(t.retry_count || t['retry-count'] || '0'),
+          maxRetries: parseInt(t.max_retries || t['max-retries'] || '3'),
+          lastError: t.last_error || t['last-error'] || undefined,
+        }));
+      
+      return {
+        projectCodename: metadata.project || 'unknown',
+        version: '1.0',
+        createdAt: metadata.created_at || metadata['created-at'] || new Date().toISOString(),
+        updatedAt: metadata.updated_at || metadata['updated-at'] || new Date().toISOString(),
+        config: {
+          workerCount: 4,
+          statuses: ['pending', 'processing', 'task_completed', 'audit_passed'],
+          completedStatuses: ['task_completed', 'audit_passed'],
+          failedStatuses: ['audit_failed'],
+          retryOnFailed: true,
+          outputPattern: 'output/{id}_{title}.md',
+        },
+        globalStatus: tasks.length === 0 ? 'not_started' : 'in_progress',
+        stats: {
+          total: tasks.length,
+          pending: tasks.filter(t => t.status === 'pending').length,
+          processing: tasks.filter(t => t.status === 'processing').length,
+          completed: tasks.filter(t => ['task_completed', 'audit_passed'].includes(t.status)).length,
+          failed: tasks.filter(t => t.status === 'audit_failed').length,
+        },
+        tasks,
+      };
+    } catch (e) {
+      logger.error('Failed to load tasks XML', { path: this.tasksFilePath, error: e });
+      return null;
+    }
+  }
+
+  /**
+   * Save the project tasks file (supports both XML and JSON)
    */
   private async save(data: ProjectTasks): Promise<boolean> {
     data.updatedAt = new Date().toISOString();
     this.updateStats(data);
+    
+    if (this.isXmlFormat) {
+      return this.saveXml(data);
+    }
+    return writeJson(this.tasksFilePath, data);
+  }
+
+  /**
+   * Save tasks to XML format
+   */
+  private saveXml(data: ProjectTasks): boolean {
+    try {
+      const taskElements = data.tasks.map(t => `    <task id="${t.id}" status="${t.status}">
+      <title>${this.escapeXml(t.title)}</title>
+      <type>${t.type}</type>
+      <description><![CDATA[${t.description || ''}]]></description>
+      ${t.assignedWorker ? `<assigned_worker>${t.assignedWorker}</assigned_worker>` : ''}
+      ${t.startedAt ? `<started_at>${t.startedAt}</started_at>` : ''}
+      ${t.completedAt ? `<completed_at>${t.completedAt}</completed_at>` : ''}
+      <retry_count>${t.retryCount}</retry_count>
+      <max_retries>${t.maxRetries}</max_retries>
+      ${t.lastError ? `<last_error><![CDATA[${t.lastError}]]></last_error>` : ''}
+    </task>`).join('\n');
+
+      const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<tasks>
+  <metadata>
+    <project>${this.escapeXml(data.projectCodename)}</project>
+    <created_at>${data.createdAt}</created_at>
+    <updated_at>${data.updatedAt}</updated_at>
+    <stats>
+      <total>${data.stats.total}</total>
+      <pending>${data.stats.pending}</pending>
+      <processing>${data.stats.processing}</processing>
+      <completed>${data.stats.completed}</completed>
+      <failed>${data.stats.failed}</failed>
+    </stats>
+  </metadata>
+  <task_list>
+${taskElements}
+  </task_list>
+</tasks>
+`;
+      fs.writeFileSync(this.tasksFilePath, xmlContent, 'utf8');
+      return true;
+    } catch (e) {
+      logger.error('Failed to save tasks XML', { path: this.tasksFilePath, error: e });
+      return false;
+    }
+  }
+
+  /**
+   * Escape special XML characters
+   */
+  private escapeXml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
+  /**
+   * Synchronous load (used inside lock) - supports both XML and JSON
+   */
+  private loadSync(): ProjectTasks | null {
+    if (this.isXmlFormat) {
+      return this.loadXml();
+    }
+    return this.loadSync();
+  }
+
+  /**
+   * Synchronous save (used inside lock) - supports both XML and JSON
+   */
+  private saveSyncInternal(data: ProjectTasks): boolean {
+    data.updatedAt = new Date().toISOString();
+    this.updateStats(data);
+    if (this.isXmlFormat) {
+      return this.saveXml(data);
+    }
     return writeJson(this.tasksFilePath, data);
   }
 
@@ -156,7 +315,7 @@ export class TaskManager {
    */
   async claimNextTask(workerId: string): Promise<Task | null> {
     return await withLock(this.tasksFilePath, async () => {
-      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      const data = this.loadSync();
       if (!data) {
         logger.error('Could not load tasks file');
         return null;
@@ -190,11 +349,14 @@ export class TaskManager {
   }
 
   /**
-   * Synchronous save (used inside lock)
+   * Synchronous save (used inside lock) - supports both XML and JSON
    */
   private saveSync(data: ProjectTasks): boolean {
     data.updatedAt = new Date().toISOString();
     this.updateStats(data);
+    if (this.isXmlFormat) {
+      return this.saveXml(data);
+    }
     return writeJson(this.tasksFilePath, data);
   }
 
@@ -207,7 +369,7 @@ export class TaskManager {
     outputFile?: string
   ): Promise<boolean> {
     return await withLock(this.tasksFilePath, () => {
-      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      const data = this.loadSync();
       if (!data) {
         return false;
       }
@@ -244,7 +406,7 @@ export class TaskManager {
     error: string
   ): Promise<boolean> {
     return await withLock(this.tasksFilePath, () => {
-      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      const data = this.loadSync();
       if (!data) {
         return false;
       }
@@ -279,7 +441,7 @@ export class TaskManager {
    */
   async releaseTask(taskId: number, workerId: string): Promise<boolean> {
     return await withLock(this.tasksFilePath, () => {
-      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      const data = this.loadSync();
       if (!data) {
         return false;
       }
@@ -311,7 +473,7 @@ export class TaskManager {
     workerId?: string
   ): Promise<boolean> {
     return await withLock(this.tasksFilePath, () => {
-      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      const data = this.loadSync();
       if (!data) {
         return false;
       }
@@ -343,7 +505,7 @@ export class TaskManager {
    */
   async addTask(task: Omit<Task, 'id' | 'retryCount'>): Promise<Task | null> {
     return await withLock(this.tasksFilePath, () => {
-      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      const data = this.loadSync();
       if (!data) {
         return null;
       }
@@ -372,7 +534,7 @@ export class TaskManager {
    */
   async addTasks(tasks: Array<Omit<Task, 'id' | 'retryCount'>>): Promise<Task[]> {
     return await withLock(this.tasksFilePath, () => {
-      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      const data = this.loadSync();
       if (!data) {
         return [];
       }
@@ -448,7 +610,7 @@ export class TaskManager {
    */
   async releaseWorkerTasks(workerId: string): Promise<number> {
     return await withLock(this.tasksFilePath, () => {
-      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      const data = this.loadSync();
       if (!data) {
         return 0;
       }
@@ -538,7 +700,7 @@ export class TaskManager {
     }
 
     return await withLock(this.tasksFilePath, async () => {
-      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      const data = this.loadSync();
       if (!data) {
         logger.error('Could not load tasks file');
         return null;
@@ -615,7 +777,7 @@ export class TaskManager {
     }
 
     return await withLock(this.tasksFilePath, () => {
-      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      const data = this.loadSync();
       if (!data) {
         return false;
       }
@@ -716,7 +878,7 @@ export class TaskManager {
     restartStageId: string
   ): Promise<boolean> {
     return await withLock(this.tasksFilePath, () => {
-      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      const data = this.loadSync();
       if (!data) {
         return false;
       }
@@ -743,7 +905,7 @@ export class TaskManager {
    */
   async clearAuditFeedback(taskId: number): Promise<boolean> {
     return await withLock(this.tasksFilePath, () => {
-      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      const data = this.loadSync();
       if (!data) {
         return false;
       }
@@ -763,7 +925,7 @@ export class TaskManager {
    */
   async linkSubtasksToParent(parentTaskId: number, subtaskIds: number[]): Promise<boolean> {
     return await withLock(this.tasksFilePath, () => {
-      const data = readJson<ProjectTasks>(this.tasksFilePath);
+      const data = this.loadSync();
       if (!data) {
         return false;
       }
@@ -865,14 +1027,22 @@ export class TaskManager {
 /**
  * Find tasks file in a directory
  * 
- * Searches for task file with standard naming: project_*_adg-tasks.json
+ * Searches for task file: tasks.xml (new) or project_*_adg-tasks.json (legacy)
  */
 export function findTasksFile(managementDir: string): string | null {
-  const files = findFiles(managementDir, /^project_.*_adg-tasks\.json$/);
-  if (files.length === 0) {
-    return null;
+  // New format: tasks.xml in project directory
+  const tasksXmlPath = require('path').join(managementDir, 'tasks.xml');
+  if (pathExists(tasksXmlPath)) {
+    return tasksXmlPath;
   }
-  return files[0];
+  
+  // Legacy format: project_*_adg-tasks.json
+  const files = findFiles(managementDir, /^project_.*_adg-tasks\.json$/);
+  if (files.length > 0) {
+    return files[0];
+  }
+  
+  return null;
 }
 
 /**
