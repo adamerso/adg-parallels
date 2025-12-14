@@ -878,6 +878,8 @@ export async function executeTask(autoMode?: 'all' | 'next'): Promise<void> {
     projectCodename: 'project', // TODO: get from config
     includeStatute: true,
     maxRetries: 3,
+    continuationPrompt: 'Kontynuuj realizację zadania. Sprawdź poprzednie kroki i dokończ pracę.',
+    maxContinuationAttempts: 10,
   };
 
   // Create executor with callbacks

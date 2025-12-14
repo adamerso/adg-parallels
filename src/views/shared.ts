@@ -1,11 +1,8 @@
 /**
- * Shared utilities for adapter wizards
+ * Shared utilities for webview wizards
  * 
  * This file contains shared functions used across all wizard panels.
- * Separated to avoid circular dependencies.
  */
-
-import * as vscode from 'vscode';
 
 /**
  * Generate a nonce for CSP
@@ -17,6 +14,130 @@ export function getNonce(): string {
     text += possible.charAt(Math.floor(Math.random() * possible.length));
   }
   return text;
+}
+
+/**
+ * Get the script block that sets up vscode messaging
+ * MUST be placed in <head> before any onclick handlers are used
+ */
+export function getHeadScript(nonce: string): string {
+  return `<script nonce="${nonce}">
+    (function() {
+      const vscode = acquireVsCodeApi();
+      
+      // Global functions for event handlers (still available but prefer data-* attributes)
+      window.send = function(cmd, data) {
+        data = data || {};
+        console.log('Wizard command:', cmd, data);
+        vscode.postMessage({ command: cmd, ...data });
+      };
+      
+      window.updateField = function(field, value) {
+        vscode.postMessage({ command: 'updateField', field: field, value: value });
+      };
+      
+      window.goToStep = function(step) {
+        vscode.postMessage({ command: 'goToStep', step: step });
+      };
+      
+      // Shorthand commands for wizard navigation  
+      window.next = function() { vscode.postMessage({ command: 'nextStep' }); };
+      window.back = function() { vscode.postMessage({ command: 'prevStep' }); };
+      window.submit = function() { vscode.postMessage({ command: 'createProject' }); };
+      window.cancel = function() { vscode.postMessage({ command: 'cancel' }); };
+      
+      // Event delegation for data-cmd elements (CLICK)
+      document.addEventListener('click', function(e) {
+        var el = e.target;
+        while (el && el !== document) {
+          if (el.hasAttribute && el.hasAttribute('data-cmd')) {
+            var cmd = el.getAttribute('data-cmd');
+            var step = el.getAttribute('data-step');
+            var value = el.getAttribute('data-value');
+            var index = el.getAttribute('data-index');
+            var field = el.getAttribute('data-field');
+            var path = el.getAttribute('data-path');
+            
+            var msg = { command: cmd };
+            if (step) msg.step = parseInt(step);
+            if (index) msg.index = parseInt(index);
+            if (field) msg.field = field;
+            if (path) msg.path = path;
+            
+            // Handle value - parse as int for specific commands
+            if (value) {
+              if (cmd === 'incrementLayers') {
+                msg.delta = parseInt(value);
+              } else if (cmd === 'goToLayer') {
+                msg.index = parseInt(value);
+              } else if (cmd === 'incrementWorkforce') {
+                msg.delta = parseInt(value);
+              } else {
+                msg.value = value;
+              }
+            }
+            
+            console.log('Click data-cmd:', cmd, msg);
+            vscode.postMessage(msg);
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          el = el.parentNode;
+        }
+      }, true);
+      
+      // Event delegation for INPUT events (text fields, textareas)
+      document.addEventListener('input', function(e) {
+        var el = e.target;
+        if (!el.hasAttribute) return;
+        
+        // Check for data-field attribute for updateField
+        if (el.hasAttribute('data-field')) {
+          var field = el.getAttribute('data-field');
+          var value = el.value;
+          console.log('Input data-field:', field, value);
+          vscode.postMessage({ command: 'updateField', field: field, value: value });
+          return;
+        }
+        
+        // Check for data-layer-field attribute for updateLayerField
+        if (el.hasAttribute('data-layer-field')) {
+          var layerField = el.getAttribute('data-layer-field');
+          var layerValue = el.value;
+          console.log('Input data-layer-field:', layerField, layerValue);
+          vscode.postMessage({ command: 'updateLayerField', field: layerField, value: layerValue });
+          return;
+        }
+        
+        // Check for data-input-file attribute for updateInputFile
+        if (el.hasAttribute('data-input-file')) {
+          var inputIndex = parseInt(el.getAttribute('data-input-file'));
+          var inputField = el.getAttribute('data-input-field');
+          var inputValue = el.value;
+          console.log('Input data-input-file:', inputIndex, inputField, inputValue);
+          vscode.postMessage({ command: 'updateInputFile', index: inputIndex, field: inputField, value: inputValue });
+          return;
+        }
+      }, true);
+      
+      // Event delegation for CHANGE events (checkboxes)
+      document.addEventListener('change', function(e) {
+        var el = e.target;
+        if (!el.hasAttribute) return;
+        
+        // Check for data-toggle-resource attribute
+        if (el.hasAttribute('data-toggle-resource')) {
+          var resourcePath = el.getAttribute('data-toggle-resource');
+          var toggleField = el.getAttribute('data-toggle-field');
+          console.log('Change toggle-resource:', resourcePath, toggleField);
+          vscode.postMessage({ command: 'toggleResource', path: resourcePath, field: toggleField });
+          return;
+        }
+      }, true);
+      
+    })();
+  </script>`;
 }
 
 /**

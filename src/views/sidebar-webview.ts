@@ -84,6 +84,9 @@ export class ADGSidebarWebviewProvider implements vscode.WebviewViewProvider {
         case 'openDashboard':
           await vscode.commands.executeCommand('adg-parallels.openProgressDashboard');
           break;
+        case 'startProcessing':
+          await vscode.commands.executeCommand('adg-parallels.startProcessing');
+          break;
         case 'stopProcessing':
           await vscode.commands.executeCommand('adg-parallels.stopProcessing');
           break;
@@ -395,6 +398,42 @@ export class ADGSidebarWebviewProvider implements vscode.WebviewViewProvider {
       background: linear-gradient(135deg, #6e7681 0%, #484f58 100%);
     }
     
+    /* Work status button - like switch but for task state */
+    .btn-work-status {
+      min-height: clamp(44px, 9vh, 64px);
+      font-size: clamp(13px, 2.8vw, 16px);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .btn-work-status.no-task {
+      background: linear-gradient(135deg, #6e7681 0%, #484f58 100%);
+      cursor: not-allowed;
+    }
+    
+    .btn-work-status.ready {
+      background: linear-gradient(135deg, #9e6a03 0%, #bb8009 100%);
+      box-shadow: 0 0 15px rgba(187, 128, 9, 0.3);
+      animation: pulse-ready 2s ease-in-out infinite;
+    }
+    
+    .btn-work-status.working {
+      background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
+      box-shadow: 0 0 20px rgba(35, 134, 54, 0.4);
+      animation: pulse-working 1.5s ease-in-out infinite;
+    }
+    
+    @keyframes pulse-ready {
+      0%, 100% { box-shadow: 0 0 15px rgba(187, 128, 9, 0.3); }
+      50% { box-shadow: 0 0 25px rgba(187, 128, 9, 0.5); }
+    }
+    
+    @keyframes pulse-working {
+      0%, 100% { box-shadow: 0 0 20px rgba(35, 134, 54, 0.4); }
+      50% { box-shadow: 0 0 30px rgba(35, 134, 54, 0.6); }
+    }
+    
     /* Divider */
     .divider {
       height: 1px;
@@ -634,40 +673,89 @@ export class ADGSidebarWebviewProvider implements vscode.WebviewViewProvider {
   private _renderControlButtons(): string {
     const buttons: string[] = [];
 
-    // Stop / Processing Stopped
+    // Main work status button - always visible, changes style based on state
+    buttons.push(this._renderWorkStatusButton());
+
+    // Stop button - only when processing
     if (this.state.processingStatus === 'processing') {
       buttons.push(`
         <button class="btn btn-warning" data-cmd="stopProcessing">
           <span class="btn-icon">⏸</span>
-          <span>Stop Processing</span>
-        </button>
-      `);
-    } else if (this.state.processingStatus === 'stopped') {
-      buttons.push(`
-        <button class="btn btn-secondary" disabled>
-          <span class="btn-icon">⏸</span>
-          <span>Processing Stopped</span>
-        </button>
-      `);
-      buttons.push(`
-        <button class="btn btn-success" data-cmd="resumeProcessing">
-          <span class="btn-icon">▶</span>
-          <span>Resume Processing</span>
+          <span>Pause</span>
         </button>
       `);
     }
 
-    // Kill button
-    if (this.state.hasProject && this.state.processingStatus !== 'idle') {
+    // Resume button - only when stopped
+    if (this.state.processingStatus === 'stopped') {
+      buttons.push(`
+        <button class="btn btn-success" data-cmd="resumeProcessing">
+          <span class="btn-icon">▶</span>
+          <span>Resume</span>
+        </button>
+      `);
+    }
+
+    // Kill button - when processing or stopped
+    if (this.state.hasProject && (this.state.processingStatus === 'processing' || this.state.processingStatus === 'stopped')) {
       buttons.push(`
         <button class="btn btn-danger" data-cmd="killProcessing">
           <span class="btn-icon">🛑</span>
-          <span>KILL PROCESSING</span>
+          <span>KILL</span>
         </button>
       `);
     }
 
     return buttons.join('');
+  }
+
+  private _renderWorkStatusButton(): string {
+    // Determine state and styling
+    let statusClass: string;
+    let icon: string;
+    let label: string;
+    let isClickable: boolean;
+    let cmd: string;
+
+    if (!this.state.hasProject) {
+      // No project = grey, disabled
+      statusClass = 'no-task';
+      icon = '○';
+      label = 'No Task to Run';
+      isClickable = false;
+      cmd = '';
+    } else if (this.state.processingStatus === 'processing') {
+      // Working = green, pulsing
+      statusClass = 'working';
+      icon = '⚡';
+      label = 'Work in Progress';
+      isClickable = false;
+      cmd = '';
+    } else if (this.state.processingStatus === 'stopped') {
+      // Paused = yellow
+      statusClass = 'ready';
+      icon = '⏸';
+      label = 'Paused';
+      isClickable = false;
+      cmd = '';
+    } else {
+      // Idle with project = yellow, ready to start
+      statusClass = 'ready';
+      icon = '▶';
+      label = 'Ready to Start';
+      isClickable = true;
+      cmd = 'startProcessing';
+    }
+
+    return `
+      <button 
+        class="btn btn-work-status ${statusClass}" 
+        ${isClickable ? `data-cmd="${cmd}"` : 'disabled'}
+      >
+        <span class="btn-icon">${icon}</span>
+        <span>${label}</span>
+      </button>
+    `;
   }
 
   private _getRoleIcon(role: RoleType): string {

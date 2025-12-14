@@ -16,3 +16,6 @@ export * from './upward-reporting';
 export * from './xml-loader';
 export * from './model-resolver';
 export * from './pipeline-engine';
+
+// v1.0 - ProjectSpec (NEW system)
+export * from './project-spec-loader';

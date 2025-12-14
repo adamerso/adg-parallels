@@ -5,4 +5,4 @@
  */
 
 export * from './sidebar-webview';
-export * from './wizard-provider';
+export * from './project-spec-wizard';

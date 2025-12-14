@@ -6,8 +6,103 @@
  */
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { getSidebarProvider } from '../views/sidebar-webview';
 import { logger } from '../utils/logger';
+import { findProjectSpec, loadProjectSpec, getSpawningLayers } from '../core/project-spec-loader';
+import { WorkerLifecycleManager, createManagerLifecycle } from '../core/worker-lifecycle';
+import { TaskManager } from '../core/task-manager';
+import { pathExists } from '../utils/file-operations';
+
+// =============================================================================
+// START PROCESSING
+// =============================================================================
+
+export async function startProcessing(): Promise<void> {
+  const provider = getSidebarProvider();
+  if (!provider) {
+    vscode.window.showErrorMessage('Sidebar not initialized');
+    return;
+  }
+  
+  const state = provider.getState();
+  if (!state.hasProject) {
+    vscode.window.showErrorMessage('No project found. Use "Provision New Project" first.');
+    return;
+  }
+  
+  // Update state to processing
+  provider.updateState({ 
+    isProcessingEnabled: true,
+    processingStatus: 'processing',
+    projectStatus: 'active',
+  });
+  
+  logger.info('Processing started');
+  vscode.window.showInformationMessage('▶ Processing started! Spawning workers...');
+  
+  // Find and load project-spec.xml
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  if (!workspaceFolders || workspaceFolders.length === 0) {
+    vscode.window.showErrorMessage('No workspace folder open');
+    return;
+  }
+  
+  const projectRoot = workspaceFolders[0].uri.fsPath;
+  const projectSpecPath = findProjectSpec(projectRoot);
+  
+  if (!projectSpecPath) {
+    vscode.window.showErrorMessage('No project-spec.xml found. Create one using the Project Wizard.');
+    return;
+  }
+  
+  const spec = loadProjectSpec(projectSpecPath);
+  if (!spec) {
+    vscode.window.showErrorMessage('Failed to load project-spec.xml');
+    return;
+  }
+  
+  // Get layers that need to spawn workers
+  const spawningLayers = getSpawningLayers(spec);
+  if (spawningLayers.length === 0) {
+    vscode.window.showWarningMessage('No layers configured for spawning workers.');
+    return;
+  }
+  
+  // Initialize task manager
+  const managementDir = path.join(projectRoot, '.adg-parallels', 'management');
+  const tasksFilePath = path.join(managementDir, `${spec.name}_adg-tasks.xml`);
+  
+  if (!pathExists(tasksFilePath)) {
+    // Create empty tasks file if it doesn't exist
+    vscode.window.showWarningMessage('No tasks file found. Import tasks first.');
+    return;
+  }
+  
+  const taskManager = new TaskManager(tasksFilePath);
+  
+  // Create lifecycle manager and spawn workers for each layer
+  const lifecycleManager = createManagerLifecycle(managementDir, taskManager);
+  await lifecycleManager.initialize();
+  
+  let totalSpawned = 0;
+  
+  for (const layer of spawningLayers) {
+    const workerCount = layer.workforceSize;
+    logger.info(`Spawning ${workerCount} workers for layer ${layer.number} (${layer.type})`);
+    
+    const workers = await lifecycleManager.provisionAndSpawnWorkers(workerCount);
+    totalSpawned += workers.length;
+    
+    // Log continuation settings for this layer
+    if (layer.continuationPrompt) {
+      logger.info(`Layer ${layer.number} continuation: max ${layer.maxContinuationAttempts} attempts`);
+    }
+  }
+  
+  vscode.window.showInformationMessage(`🚀 Spawned ${totalSpawned} workers!`);
+  logger.info(`Processing started with ${totalSpawned} workers total`);
+}
 
 // =============================================================================
 // TOGGLE PROCESSING
@@ -287,6 +382,7 @@ function getAboutHtml(): string {
 
 export function registerSidebarCommands(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
+    vscode.commands.registerCommand('adg-parallels.startProcessing', startProcessing),
     vscode.commands.registerCommand('adg-parallels.toggleProcessing', toggleProcessing),
     vscode.commands.registerCommand('adg-parallels.stopProcessing', stopProcessing),
     vscode.commands.registerCommand('adg-parallels.resumeProcessing', resumeProcessing),

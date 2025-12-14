@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    ADG-Parallels v0.4.0 - Project Spec Schema
+    
+    Defines the structure for project_{projectName}.xml files.
+    This is the core configuration format for ejajka-based parallel processing.
+    
+    Philosophy:
+    - Fields are textual and interpreted by AI (ejajka)
+    - Minimal structure, maximum flexibility
+    - Layers define hierarchical workforce (manager -> teamleader -> worker)
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    
+    <!-- ========================================================================
+         ROOT ELEMENT: project
+         ======================================================================== -->
+    <xs:element name="project">
+        <xs:complexType>
+            <xs:sequence>
+                <!-- Project name (a-zA-Z0-9_-) -->
+                <xs:element name="name" type="ProjectNameType"/>
+                
+                <!-- Creation timestamp (auto-generated) -->
+                <xs:element name="created_at" type="xs:dateTime"/>
+                
+                <!-- Number of workforce layers (1-99) -->
+                <xs:element name="workforce_layers" type="WorkforceLayersType"/>
+                
+                <!-- Resources: inputs, descriptions, outputs -->
+                <xs:element name="resources" type="ResourcesType"/>
+                
+                <!-- Layer definitions (one per workforce layer) -->
+                <xs:element name="layers" type="LayersType"/>
+                
+                <!-- Optional settings -->
+                <xs:element name="settings" type="SettingsType" minOccurs="0"/>
+            </xs:sequence>
+            
+            <!-- Schema version for future compatibility -->
+            <xs:attribute name="version" type="xs:string" default="1.0"/>
+        </xs:complexType>
+    </xs:element>
+    
+    <!-- ========================================================================
+         PROJECT NAME TYPE
+         Only allows: letters, numbers, hyphens, underscores
+         ======================================================================== -->
+    <xs:simpleType name="ProjectNameType">
+        <xs:restriction base="xs:string">
+            <xs:pattern value="[a-zA-Z0-9_-]+"/>
+            <xs:minLength value="1"/>
+            <xs:maxLength value="100"/>
+        </xs:restriction>
+    </xs:simpleType>
+    
+    <!-- ========================================================================
+         WORKFORCE LAYERS TYPE
+         Number of hierarchical layers (1-99)
+         ======================================================================== -->
+    <xs:simpleType name="WorkforceLayersType">
+        <xs:restriction base="xs:integer">
+            <xs:minInclusive value="1"/>
+            <xs:maxInclusive value="99"/>
+        </xs:restriction>
+    </xs:simpleType>
+    
+    <!-- ========================================================================
+         RESOURCES TYPE
+         Contains input description, file list, and output directory
+         ======================================================================== -->
+    <xs:complexType name="ResourcesType">
+        <xs:sequence>
+            <!-- 
+                Free-text description of inputs for ejajka to interpret.
+                Example: "CSV where each row is a task. Col1=topic, Col2=length"
+            -->
+            <xs:element name="description" type="xs:string"/>
+            
+            <!-- List of input files/directories -->
+            <xs:element name="files" type="FilesType" minOccurs="0"/>
+            
+            <!-- Global output directory path -->
+            <xs:element name="output_directory" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- ========================================================================
+         FILES TYPE
+         Collection of file/directory references
+         ======================================================================== -->
+    <xs:complexType name="FilesType">
+        <xs:sequence>
+            <xs:element name="file" type="FileType" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- ========================================================================
+         FILE TYPE
+         Single file or directory reference with layer copy settings
+         ======================================================================== -->
+    <xs:complexType name="FileType">
+        <xs:sequence>
+            <!-- 
+                Comma-separated list of layer numbers to copy this file to.
+                Example: "1,2,3" means copy to layers 1, 2, and 3
+                Empty or missing means file is reference-only (not copied)
+            -->
+            <xs:element name="copy_to_layers" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+        
+        <!-- Path to file or directory (relative or absolute) -->
+        <xs:attribute name="path" type="xs:string" use="required"/>
+    </xs:complexType>
+    
+    <!-- ========================================================================
+         LAYERS TYPE
+         Container for layer definitions
+         ======================================================================== -->
+    <xs:complexType name="LayersType">
+        <xs:sequence>
+            <xs:element name="layer" type="LayerType" minOccurs="1" maxOccurs="99"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- ========================================================================
+         LAYER TYPE
+         Configuration for a single workforce layer
+         ======================================================================== -->
+    <xs:complexType name="LayerType">
+        <xs:sequence>
+            <!--
+                Layer type defines role and capabilities:
+                - manager: delegates tasks, MUST report progress
+                - teamleader: delegates tasks, optional reporting
+                - worker: executes tasks, cannot delegate
+            -->
+            <xs:element name="type" type="LayerTypeEnum"/>
+            
+            <!--
+                Reporting configuration (required for manager, optional for teamleader)
+                Free-text description of how/what to report.
+                Example: "Report progress to progress.json every 10 tasks"
+            -->
+            <xs:element name="reporting" type="xs:string" minOccurs="0"/>
+            
+            <!--
+                Detailed task description for ejajka.
+                This is the main instruction for what this layer should do.
+                Can be as detailed as needed - ejajka will interpret it.
+            -->
+            <xs:element name="task_description" type="xs:string"/>
+            
+            <!--
+                Resources available to this layer.
+                Each resource has use and readonly flags.
+            -->
+            <xs:element name="layer_resources" type="LayerResourcesType" minOccurs="0"/>
+        </xs:sequence>
+        
+        <!-- Layer number (1-based, matches workforce_layers count) -->
+        <xs:attribute name="number" type="xs:positiveInteger" use="required"/>
+    </xs:complexType>
+    
+    <!-- ========================================================================
+         LAYER TYPE ENUM
+         Defines the three possible layer roles
+         ======================================================================== -->
+    <xs:simpleType name="LayerTypeEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="manager"/>
+            <xs:enumeration value="teamleader"/>
+            <xs:enumeration value="worker"/>
+        </xs:restriction>
+    </xs:simpleType>
+    
+    <!-- ========================================================================
+         LAYER RESOURCES TYPE
+         Collection of resources for a specific layer
+         ======================================================================== -->
+    <xs:complexType name="LayerResourcesType">
+        <xs:sequence>
+            <xs:element name="resource" type="ResourceType" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- ========================================================================
+         RESOURCE TYPE
+         Single resource reference with usage flags
+         ======================================================================== -->
+    <xs:complexType name="ResourceType">
+        <xs:attribute name="path" type="xs:string" use="required"/>
+        
+        <!-- Whether this resource should be used by the layer -->
+        <xs:attribute name="use" type="xs:boolean" default="true"/>
+        
+        <!-- 
+            If true: "don't modify, just study" - resource is read-only reference
+            If false: resource can be modified
+        -->
+        <xs:attribute name="readonly" type="xs:boolean" default="false"/>
+    </xs:complexType>
+    
+    <!-- ========================================================================
+         SETTINGS TYPE
+         Optional technical settings
+         ======================================================================== -->
+    <xs:complexType name="SettingsType">
+        <xs:sequence>
+            <!-- Health monitoring configuration -->
+            <xs:element name="health_monitoring" type="HealthMonitoringType" minOccurs="0"/>
+            
+            <!-- Maximum retry attempts for failed tasks -->
+            <xs:element name="max_retries" type="xs:positiveInteger" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+    
+    <!-- ========================================================================
+         HEALTH MONITORING TYPE
+         Configuration for worker health checks
+         ======================================================================== -->
+    <xs:complexType name="HealthMonitoringType">
+        <xs:attribute name="enabled" type="xs:boolean" default="true"/>
+        
+        <!-- Heartbeat interval in seconds (30-600) -->
+        <xs:attribute name="interval_seconds" type="HeartbeatIntervalType" default="60"/>
+    </xs:complexType>
+    
+    <!-- ========================================================================
+         HEARTBEAT INTERVAL TYPE
+         Constrained integer for heartbeat interval
+         ======================================================================== -->
+    <xs:simpleType name="HeartbeatIntervalType">
+        <xs:restriction base="xs:integer">
+            <xs:minInclusive value="30"/>
+            <xs:maxInclusive value="600"/>
+        </xs:restriction>
+    </xs:simpleType>
+    
+</xs:schema>

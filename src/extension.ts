@@ -19,7 +19,7 @@ import {
 import { registerCommands } from './commands';
 import { registerSidebarCommands } from './commands/sidebar-commands';
 import { createSidebarProvider, getSidebarProvider } from './views/sidebar-webview';
-import { showProjectWizard } from './views/wizard-provider';
+import { showProjectSpecWizard } from './views/project-spec-wizard';
 import { WorkerConfig } from './types';
 
 // =============================================================================
@@ -47,10 +47,10 @@ export function activate(context: vscode.ExtensionContext): void {
   // Register sidebar commands
   registerSidebarCommands(context);
   
-  // Register project wizard command
+  // Register project wizard command (new ProjectSpec wizard)
   context.subscriptions.push(
     vscode.commands.registerCommand('adg-parallels.showProjectWizard', () => {
-      showProjectWizard(context);
+      showProjectSpecWizard(context);
     })
   );
   

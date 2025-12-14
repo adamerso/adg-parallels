@@ -50,6 +50,10 @@ export interface ExecutorConfig {
   includeStatute: boolean;
   /** Maximum retries per task */
   maxRetries: number;
+  /** Continuation prompt (poganiacz) - sent when task is not complete */
+  continuationPrompt: string;
+  /** Maximum continuation attempts before giving up */
+  maxContinuationAttempts: number;
 }
 
 export interface ExecutionResult {
@@ -168,7 +172,7 @@ export class WorkerExecutor {
       this.callbacks.onProgress?.(task, 'Sending to language model...');
       
       let accumulatedOutput = '';
-      const response = await this.lmClient.sendPrompt(fullPrompt, {
+      let response = await this.lmClient.sendPrompt(fullPrompt, {
         token: this.cancellationSource.token,
         onChunk: (chunk) => {
           accumulatedOutput += chunk;
@@ -179,11 +183,54 @@ export class WorkerExecutor {
 
       // Check completion criteria
       this.callbacks.onProgress?.(task, 'Checking completion criteria...');
-      const criteriaResult = checkCompletionCriteria(response.text, adapter);
-      const completionSignal = parseCompletionSignal(response.text);
+      let criteriaResult = checkCompletionCriteria(response.text, adapter);
+      let completionSignal = parseCompletionSignal(response.text);
+
+      // =========================================================================
+      // POGANIACZ - Continuation logic for incomplete tasks
+      // =========================================================================
+      let continuationAttempts = 0;
+      const maxContinuationAttempts = this.config.maxContinuationAttempts || 10;
+      const continuationPrompt = this.config.continuationPrompt || 
+        'Kontynuuj realizację zadania. Sprawdź poprzednie kroki i dokończ pracę.';
+
+      while (!completionSignal.isComplete && continuationAttempts < maxContinuationAttempts) {
+        continuationAttempts++;
+        logger.info(`Task #${task.id} not complete, sending continuation ${continuationAttempts}/${maxContinuationAttempts}`);
+        this.callbacks.onProgress?.(task, `Sending continuation (${continuationAttempts}/${maxContinuationAttempts})...`);
+
+        // Send continuation prompt
+        const continuationResponse = await this.lmClient.sendPrompt(continuationPrompt, {
+          token: this.cancellationSource.token,
+          onChunk: (chunk) => {
+            accumulatedOutput += chunk;
+            this.callbacks.onChunk?.(task, chunk);
+          },
+          onProgress: (msg) => this.callbacks.onProgress?.(task, msg),
+        });
+
+        // Append continuation response to the accumulated output
+        response = {
+          ...continuationResponse,
+          text: accumulatedOutput,
+        };
+
+        // Re-check completion criteria
+        criteriaResult = checkCompletionCriteria(response.text, adapter);
+        completionSignal = parseCompletionSignal(response.text);
+        
+        if (completionSignal.isComplete) {
+          logger.info(`Task #${task.id} completed after ${continuationAttempts} continuation(s)`);
+          break;
+        }
+      }
 
       if (!criteriaResult.passed) {
         logger.warn('Completion criteria not met', { reason: criteriaResult.reason });
+      }
+
+      if (!completionSignal.isComplete && continuationAttempts >= maxContinuationAttempts) {
+        logger.warn(`Task #${task.id} did not complete after ${maxContinuationAttempts} continuations`);
       }
 
       // Save output
@@ -420,7 +467,8 @@ export function createExecutorFromConfig(
   workerConfig: WorkerConfig,
   taskManager: TaskManager,
   adaptersDir: string,
-  callbacks?: ExecutorCallbacks
+  callbacks?: ExecutorCallbacks,
+  continuationSettings?: { prompt?: string; maxAttempts?: number }
 ): WorkerExecutor {
   const config: ExecutorConfig = {
     workerId: workerConfig.workerId,
@@ -431,6 +479,9 @@ export function createExecutorFromConfig(
     projectCodename: 'project', // TODO: get from project config
     includeStatute: true,
     maxRetries: 3,
+    continuationPrompt: continuationSettings?.prompt || 
+      'Kontynuuj realizację zadania. Sprawdź poprzednie kroki i dokończ pracę.',
+    maxContinuationAttempts: continuationSettings?.maxAttempts || 10,
   };
 
   return new WorkerExecutor(config, taskManager, callbacks);
