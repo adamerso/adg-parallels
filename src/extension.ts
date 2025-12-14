@@ -141,6 +141,13 @@ export function activate(context: vscode.ExtensionContext): void {
 async function initializeRoleBasedFeatures(context: vscode.ExtensionContext): Promise<void> {
   const roleInfo = detectRole();
 
+  logger.info('🔍 Role detection result', { 
+    role: roleInfo?.role, 
+    hasWorker: roleInfo?.hasWorker,
+    hasManagement: roleInfo?.hasManagement,
+    workspaceRoot: roleInfo?.paths.workspaceRoot
+  });
+
   if (!roleInfo) {
     // No workspace - hide status bar
     if (statusBarItem) {
@@ -188,31 +195,40 @@ async function initializeRoleBasedFeatures(context: vscode.ExtensionContext): Pr
   }
 
   if (roleInfo.role === 'worker') {
+    logger.info('🥚 Worker mode detected, initializing...');
+    
     // Worker gets tasks file path from worker.xml config
     const workerConfigPath = path.join(roleInfo.paths.workspaceRoot, 'worker.xml');
+    logger.info('🥚 Looking for worker config', { workerConfigPath });
+    
     const workerConfig = await loadWorkerConfigXml(workerConfigPath);
     
     if (!workerConfig) {
-      logger.error('Worker config not found or invalid', { configPath: workerConfigPath });
+      logger.error('❌ Worker config not found or invalid', { configPath: workerConfigPath });
       vscode.window.showErrorMessage(
         `🥚 Worker error: worker.xml not found at ${workerConfigPath}`
       );
       return;
     }
     
+    logger.info('🥚 Loaded worker config', { 
+      workerId: workerConfig.workerId,
+      tasksFile: workerConfig.paths.tasksFile 
+    });
+    
     // Get worker ID from config, or from roleInfo, or generate from folder name
     const workerId = workerConfig.workerId || roleInfo.workerId || 
       path.basename(roleInfo.paths.workspaceRoot);
     
     if (!workerConfig.paths.tasksFile) {
-      logger.error('Worker config missing tasksFile path', { config: workerConfig });
+      logger.error('❌ Worker config missing tasksFile path', { config: workerConfig });
       vscode.window.showErrorMessage('🥚 Worker error: worker.xml missing tasks_file path');
       return;
     }
     
     // Verify tasks file actually exists before proceeding
     if (!pathExists(workerConfig.paths.tasksFile)) {
-      logger.error('Worker tasks file does not exist', { 
+      logger.error('❌ Worker tasks file does not exist', { 
         tasksFile: workerConfig.paths.tasksFile 
       });
       vscode.window.showErrorMessage(

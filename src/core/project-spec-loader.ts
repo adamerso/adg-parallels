@@ -538,11 +538,10 @@ export function getTotalWorkerCount(spec: ProjectSpec): number {
 
 /**
  * Get layers that need to spawn workers
+ * Any layer with workforceSize > 0 should spawn that many workers
  */
 export function getSpawningLayers(spec: ProjectSpec): ProjectLayer[] {
-  return spec.layers.filter(l => 
-    (l.type === 'manager' || l.type === 'teamleader') && l.workforceSize > 0
-  );
+  return spec.layers.filter(l => l.workforceSize > 0);
 }
 
 /**

@@ -283,10 +283,22 @@ export class WorkerLifecycleManager {
     const id = workerId || `worker-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
     const workerDir = path.join(this.workersBaseDir, id);
 
+    logger.info(`🥚 Provisioning worker ${id}`, { 
+      workerDir, 
+      workersBaseDir: this.workersBaseDir,
+      managementDir: this.managementDir 
+    });
+
     // Create worker directory structure
-    ensureDir(workerDir);
-    ensureDir(path.join(workerDir, 'output'));
-    ensureDir(path.join(workerDir, '.adg-parallels', 'worker'));
+    const createdWorkerDir = ensureDir(workerDir);
+    const createdOutputDir = ensureDir(path.join(workerDir, 'output'));
+    const createdAdgDir = ensureDir(path.join(workerDir, '.adg-parallels', 'worker'));
+    
+    logger.info(`🥚 Created directories for ${id}`, { 
+      createdWorkerDir, 
+      createdOutputDir, 
+      createdAdgDir 
+    });
 
     // Get tasks file path from task manager (correct dynamic path)
     const tasksFilePath = this.taskManager.getFilePath();
@@ -430,14 +442,23 @@ Good luck, worker! 🚀
    */
   async spawnWorker(workerInfo: WorkerInfo): Promise<boolean> {
     try {
+      logger.info(`🚀 Spawning worker window: ${workerInfo.workerId}`, { 
+        workerDir: workerInfo.workerDir 
+      });
+      
       // Simple approach - just open the folder in a new window
       // Extension will be loaded if installed, or user can run commands manually
       const uri = vscode.Uri.file(workerInfo.workerDir);
+      
+      // Show notification to user
+      vscode.window.showInformationMessage(`🥚 Opening worker: ${workerInfo.workerId}`);
+      
       await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
-      logger.info(`Spawned worker window: ${workerInfo.workerId}`);
+      logger.info(`✅ Spawned worker window: ${workerInfo.workerId}`);
       return true;
     } catch (error) {
-      logger.error(`Failed to spawn worker: ${workerInfo.workerId}`, error);
+      logger.error(`❌ Failed to spawn worker: ${workerInfo.workerId}`, error);
+      vscode.window.showErrorMessage(`Failed to spawn worker: ${workerInfo.workerId}`);
       return false;
     }
   }

@@ -96,17 +96,25 @@ export async function startProcessing(): Promise<void> {
   
   // Create lifecycle manager and spawn workers for each layer
   // Use project directory as management dir
+  logger.info('Creating lifecycle manager', { projectDir, tasksFilePath });
   const lifecycleManager = createManagerLifecycle(projectDir, taskManager);
   await lifecycleManager.initialize();
   
   let totalSpawned = 0;
   
+  logger.info(`Found ${spawningLayers.length} layers to spawn`, { 
+    layers: spawningLayers.map(l => ({ num: l.number, type: l.type, size: l.workforceSize }))
+  });
+  
   for (const layer of spawningLayers) {
     const workerCount = layer.workforceSize;
-    logger.info(`Spawning ${workerCount} workers for layer ${layer.number} (${layer.type})`);
+    logger.info(`🥚 Spawning ${workerCount} workers for layer ${layer.number} (${layer.type})`);
+    vscode.window.showInformationMessage(`🥚 Spawning ${workerCount} workers for layer ${layer.number}...`);
     
     const workers = await lifecycleManager.provisionAndSpawnWorkers(workerCount);
     totalSpawned += workers.length;
+    
+    logger.info(`✅ Spawned ${workers.length} workers for layer ${layer.number}`);
     
     // Log continuation settings for this layer
     if (layer.continuationPrompt) {
