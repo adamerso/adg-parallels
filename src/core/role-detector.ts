@@ -9,7 +9,9 @@
  */
 
 import * as path from 'path';
+import * as fs from 'fs';
 import * as vscode from 'vscode';
+import { XMLParser } from 'fast-xml-parser';
 import { Role, RoleInfo, RolePaths, WorkerConfig, HierarchyConfig } from '../types';
 import { pathExists, isDirectory, readJson } from '../utils/file-operations';
 import { logger } from '../utils/logger';
@@ -18,7 +20,7 @@ import { logger } from '../utils/logger';
 const ADG_DIR = '.adg-parallels';
 const MANAGEMENT_DIR = 'management';
 const WORKER_DIR = 'worker';
-const WORKER_CONFIG_FILE = 'worker.json';
+const WORKER_CONFIG_FILE = 'worker.xml';
 const HIERARCHY_CONFIG_FILE = 'hierarchy-config.json';
 
 /**
@@ -110,11 +112,44 @@ export function detectRole(): RoleInfo | null {
 }
 
 /**
- * Get worker configuration
+ * Get worker configuration from XML
  */
 export function getWorkerConfig(workerDir: string): WorkerConfig | null {
   const configPath = path.join(workerDir, WORKER_CONFIG_FILE);
-  return readJson<WorkerConfig>(configPath);
+  
+  if (!pathExists(configPath)) {
+    return null;
+  }
+  
+  try {
+    const xmlContent = fs.readFileSync(configPath, 'utf8');
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '@_',
+    });
+    const parsed = parser.parse(xmlContent);
+    const worker = parsed.worker || parsed;
+    
+    return {
+      workerId: worker.worker_id || '',
+      role: worker.role || 'worker',
+      parentRole: worker.parent_role || 'manager',
+      paths: {
+        tasksFile: worker.paths?.tasks_file || '',
+        attachments: worker.paths?.attachments || '',
+        outputDir: worker.paths?.output_dir || '',
+        workerRoot: worker.paths?.worker_root || '',
+      },
+      taskFilter: {
+        status: worker.task_filter?.status || 'pending',
+      },
+      createdAt: worker.created_at || new Date().toISOString(),
+      instructionsVersion: worker.instructions_version || '1.0',
+    };
+  } catch (e) {
+    logger.error('Failed to parse worker.xml', { configPath, error: e });
+    return null;
+  }
 }
 
 /**

@@ -143,7 +143,7 @@ export class ADGSidebarWebviewProvider implements vscode.WebviewViewProvider {
 
     const mainFolder = workspaceFolders[0].uri.fsPath;
     const adgDir = path.join(mainFolder, '.adg-parallels');
-    const workerConfig = path.join(mainFolder, 'worker.json');
+    const workerConfig = path.join(mainFolder, 'worker.xml');
 
     if (pathExists(adgDir)) {
       this.state.hasProject = true;

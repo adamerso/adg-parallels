@@ -7,8 +7,9 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { logger } from './utils/logger';
-import { readJson, pathExists } from './utils/file-operations';
+import { pathExists } from './utils/file-operations';
 import { detectRole, isAdgProject, getRoleDisplayInfo, canDelegate, isWorker } from './core/role-detector';
 import { TaskManager, findTasksFile } from './core/task-manager';
 import { 
@@ -21,6 +22,50 @@ import { registerSidebarCommands } from './commands/sidebar-commands';
 import { createSidebarProvider, getSidebarProvider } from './views/sidebar-webview';
 import { showProjectSpecWizard } from './views/project-spec-wizard';
 import { WorkerConfig } from './types';
+import { XMLParser } from 'fast-xml-parser';
+
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+/**
+ * Load worker config from XML file
+ */
+async function loadWorkerConfigXml(filePath: string): Promise<WorkerConfig | null> {
+  if (!pathExists(filePath)) {
+    return null;
+  }
+  
+  try {
+    const xmlContent = fs.readFileSync(filePath, 'utf8');
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '@_',
+    });
+    const parsed = parser.parse(xmlContent);
+    const worker = parsed.worker || parsed;
+    
+    return {
+      workerId: worker.worker_id || '',
+      role: worker.role || 'worker',
+      parentRole: worker.parent_role || 'manager',
+      paths: {
+        tasksFile: worker.paths?.tasks_file || '',
+        attachments: worker.paths?.attachments || '',
+        outputDir: worker.paths?.output_dir || '',
+        workerRoot: worker.paths?.worker_root || '',
+      },
+      taskFilter: {
+        status: worker.task_filter?.status || 'pending',
+      },
+      createdAt: worker.created_at || new Date().toISOString(),
+      instructionsVersion: worker.instructions_version || '1.0',
+    };
+  } catch (e) {
+    logger.error('Failed to load worker config XML', { filePath, error: e });
+    return null;
+  }
+}
 
 // =============================================================================
 // GLOBAL STATE
@@ -143,9 +188,9 @@ async function initializeRoleBasedFeatures(context: vscode.ExtensionContext): Pr
   }
 
   if (roleInfo.role === 'worker' && roleInfo.workerId) {
-    // Worker gets tasks file path from worker.json config
-    const workerConfigPath = path.join(roleInfo.paths.workspaceRoot, 'worker.json');
-    const workerConfig = readJson<WorkerConfig>(workerConfigPath);
+    // Worker gets tasks file path from worker.xml config
+    const workerConfigPath = path.join(roleInfo.paths.workspaceRoot, 'worker.xml');
+    const workerConfig = await loadWorkerConfigXml(workerConfigPath);
     
     if (workerConfig && workerConfig.paths.tasksFile) {
       // Verify tasks file actually exists before proceeding

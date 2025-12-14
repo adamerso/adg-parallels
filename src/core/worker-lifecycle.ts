@@ -76,7 +76,8 @@ export class WorkerLifecycleManager {
     workerId?: string
   ) {
     this.managementDir = managementDir;
-    this.workersBaseDir = path.join(managementDir, '..', 'workers');
+    // Workers dir is inside the project directory
+    this.workersBaseDir = path.join(managementDir, 'workers');
     this.taskManager = taskManager;
     this.isManager = isManager;
     this.workerId = workerId;
@@ -137,7 +138,7 @@ export class WorkerLifecycleManager {
    * Load worker info from directory
    */
   private async loadWorkerInfo(workerId: string, workerDir: string): Promise<WorkerInfo | null> {
-    const configPath = path.join(workerDir, 'worker.json');
+    const configPath = path.join(workerDir, 'worker.xml');
     // v0.3.0: Support both XML and JSON heartbeat, prefer XML
     const heartbeatXmlPath = path.join(workerDir, 'heartbeat.xml');
     const heartbeatJsonPath = path.join(workerDir, 'heartbeat.json');
@@ -145,7 +146,16 @@ export class WorkerLifecycleManager {
     const instructionsPath = path.join(workerDir, 'instructions.md');
     const outputDir = path.join(workerDir, 'output');
 
-    const config = pathExists(configPath) ? readJson<WorkerConfig>(configPath) : undefined;
+    // Load worker config from XML
+    let config: WorkerConfig | undefined;
+    if (pathExists(configPath)) {
+      try {
+        const xmlData = await loadXML<any>(configPath);
+        config = this.parseWorkerConfigXml(xmlData);
+      } catch (e) {
+        logger.warn(`Failed to load worker config XML: ${configPath}`, e);
+      }
+    }
     
     // v0.3.0: Load heartbeat from XML or fallback to JSON
     let heartbeat: HeartbeatXML | undefined;
@@ -171,6 +181,55 @@ export class WorkerLifecycleManager {
       isHealthy: this.isHeartbeatHealthy(heartbeat),
       lastHealthCheck: new Date(),
     };
+  }
+
+  /**
+   * Parse worker config from XML structure
+   */
+  private parseWorkerConfigXml(xmlData: any): WorkerConfig {
+    const worker = xmlData.worker || xmlData;
+    return {
+      workerId: worker.worker_id || worker.workerId || '',
+      role: worker.role || 'worker',
+      parentRole: worker.parent_role || worker.parentRole || 'manager',
+      paths: {
+        tasksFile: worker.paths?.tasks_file || worker.paths?.tasksFile || '',
+        attachments: worker.paths?.attachments || '',
+        outputDir: worker.paths?.output_dir || worker.paths?.outputDir || '',
+        workerRoot: worker.paths?.worker_root || worker.paths?.workerRoot || '',
+      },
+      taskFilter: {
+        status: worker.task_filter?.status || worker.taskFilter?.status || 'pending',
+      },
+      createdAt: worker.created_at || worker.createdAt || new Date().toISOString(),
+      instructionsVersion: worker.instructions_version || worker.instructionsVersion || '1.0',
+    };
+  }
+
+  /**
+   * Save worker config as XML
+   */
+  private async saveWorkerConfigXml(filePath: string, config: WorkerConfig): Promise<void> {
+    const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<worker>
+  <worker_id>${config.workerId}</worker_id>
+  <role>${config.role}</role>
+  <parent_role>${config.parentRole}</parent_role>
+  <paths>
+    <tasks_file>${config.paths.tasksFile}</tasks_file>
+    <attachments>${config.paths.attachments}</attachments>
+    <output_dir>${config.paths.outputDir}</output_dir>
+    <worker_root>${config.paths.workerRoot}</worker_root>
+  </paths>
+  <task_filter>
+    <status>${config.taskFilter?.status || 'pending'}</status>
+  </task_filter>
+  <created_at>${config.createdAt}</created_at>
+  <instructions_version>${config.instructionsVersion}</instructions_version>
+</worker>
+`;
+    const fs = await import('fs');
+    fs.writeFileSync(filePath, xmlContent, 'utf8');
   }
 
   /**
@@ -232,8 +291,9 @@ export class WorkerLifecycleManager {
     // Get tasks file path from task manager (correct dynamic path)
     const tasksFilePath = this.taskManager.getFilePath();
     
-    // Output goes to shared project output folder, not worker-specific
-    const projectRoot = path.dirname(path.dirname(tasksFilePath)); // .adg-parallels/
+    // Output goes to shared project output folder
+    // Project root is the directory containing tasks.xml (managementDir)
+    const projectRoot = this.managementDir;
     const sharedOutputDir = path.join(projectRoot, 'output');
 
     // Create worker config
@@ -254,9 +314,9 @@ export class WorkerLifecycleManager {
       instructionsVersion: '1.0',
     };
 
-    // Write worker config
-    const configPath = path.join(workerDir, 'worker.json');
-    writeJson(configPath, workerConfig);
+    // Write worker config as XML
+    const configPath = path.join(workerDir, 'worker.xml');
+    await this.saveWorkerConfigXml(configPath, workerConfig);
 
     // Create initial heartbeat (v0.3.0: XML format)
     const heartbeat: HeartbeatXML = {
@@ -326,7 +386,7 @@ You are an ADG-Parallels **Worker** (id: ${config.workerId}).
 - Check for new tasks after completing each one
 
 ## Your Workspace
-- Config: \`worker.json\`
+- Config: \`worker.xml\`
 - Heartbeat: \`heartbeat.xml\` (v0.3.0)
 - Output: \`output/\`
 
@@ -432,8 +492,9 @@ Good luck, worker! 🚀
     for (const [id, worker] of this.workers) {
       // Check if worker has finished flag - means it completed normally, not crashed
       const finishedFlagPath = path.join(worker.workerDir, 'finished.flag');
+      const finishedFlagXmlPath = path.join(worker.workerDir, 'finished.flag.xml');
       const finishedXmlPath = path.join(worker.workerDir, 'finished.xml');
-      if (pathExists(finishedFlagPath) || pathExists(finishedXmlPath)) {
+      if (pathExists(finishedFlagPath) || pathExists(finishedFlagXmlPath) || pathExists(finishedXmlPath)) {
         // Worker finished gracefully - mark as healthy and skip
         worker.isHealthy = true;
         logger.debug(`Worker ${id} has finished flag, skipping health check`);
@@ -505,6 +566,17 @@ Good luck, worker! 🚀
 
     // Auto-restart after 3 consecutive failures
     if (consecutiveFailures >= 3) {
+      // Double-check finished flag before respawn - worker may have finished gracefully
+      const finishedFlagPath = path.join(worker.workerDir, 'finished.flag');
+      const finishedFlagXmlPath = path.join(worker.workerDir, 'finished.flag.xml');
+      const finishedXmlPath = path.join(worker.workerDir, 'finished.xml');
+      if (pathExists(finishedFlagPath) || pathExists(finishedFlagXmlPath) || pathExists(finishedXmlPath)) {
+        logger.info(`Worker ${worker.workerId} has finished flag - skipping respawn`);
+        (worker as any)._consecutiveFailures = 0;
+        worker.isHealthy = true;
+        return;
+      }
+
       logger.warn(`Worker ${worker.workerId} failed 3+ times, attempting restart...`);
       
       // Try to respawn the worker

@@ -33,7 +33,7 @@
   ],
   "activationEvents": [
     "workspaceContains:.adg-parallels",
-    "workspaceContains:worker.json",
+    "workspaceContains:worker.xml",
     "onStartupFinished"
   ],
   "main": "./out/extension.js",

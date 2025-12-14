@@ -497,11 +497,25 @@ export function findProjectSpec(projectRoot: string): string | null {
     return adgSpecPath;
   }
 
-  // Check for any project-*.xml
+  // Check for any project-*.xml in root
   const files = fs.readdirSync(projectRoot);
   for (const file of files) {
     if (file.startsWith('project-') && file.endsWith('.xml')) {
       return path.join(projectRoot, file);
+    }
+  }
+
+  // Check for root_of_project_* folders (created by wizard)
+  for (const file of files) {
+    if (file.startsWith('root_of_project_')) {
+      const projectDir = path.join(projectRoot, file);
+      const stat = fs.statSync(projectDir);
+      if (stat.isDirectory()) {
+        const wizardSpecPath = path.join(projectDir, 'project-spec.xml');
+        if (fs.existsSync(wizardSpecPath)) {
+          return wizardSpecPath;
+        }
+      }
     }
   }
 

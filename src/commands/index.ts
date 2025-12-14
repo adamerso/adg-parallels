@@ -7,6 +7,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { XMLParser } from 'fast-xml-parser';
 import { RoleInfo, ProjectConfig, Task, TaskStatus, WorkerConfig } from '../types';
 import { detectRole, canDelegate, getRoleDisplayInfo } from '../core/role-detector';
 import { TaskManager, createProjectTasks, findTasksFile } from '../core/task-manager';
@@ -33,6 +34,36 @@ import {
 import { ensureDir, pathExists, writeJson, readJson } from '../utils/file-operations';
 import { logger } from '../utils/logger';
 import { getSidebarProvider } from '../views/sidebar-webview';
+
+// =============================================================================
+// HELPER: Parse Worker XML
+// =============================================================================
+
+function parseWorkerXml(xmlContent: string): WorkerConfig {
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '@_',
+  });
+  const parsed = parser.parse(xmlContent);
+  const worker = parsed.worker || parsed;
+  
+  return {
+    workerId: worker.worker_id || '',
+    role: worker.role || 'worker',
+    parentRole: worker.parent_role || 'manager',
+    paths: {
+      tasksFile: worker.paths?.tasks_file || '',
+      attachments: worker.paths?.attachments || '',
+      outputDir: worker.paths?.output_dir || '',
+      workerRoot: worker.paths?.worker_root || '',
+    },
+    taskFilter: {
+      status: worker.task_filter?.status || 'pending',
+    },
+    createdAt: worker.created_at || new Date().toISOString(),
+    instructionsVersion: worker.instructions_version || '1.0',
+  };
+}
 
 // =============================================================================
 // COMMAND: Provision Project
@@ -98,8 +129,8 @@ export async function provisionProject(): Promise<void> {
     value: '4',
     validateInput: (value) => {
       const num = parseInt(value, 10);
-      if (isNaN(num) || num < 1 || num > 10) {
-        return 'Worker count must be between 1 and 10';
+      if (isNaN(num) || num < 1 || num > 99) {
+        return 'Worker count must be between 1 and 99';
       }
       return null;
     }
@@ -745,9 +776,9 @@ export async function executeTask(autoMode?: 'all' | 'next'): Promise<void> {
   let adaptersDir: string;
 
   if (roleInfo.role === 'worker' || roleInfo.role === 'teamlead') {
-    // Worker mode - load from worker.json
-    const workerConfigPath = path.join(workspaceRoot, 'worker.json');
-    workerConfig = readJson<WorkerConfig>(workerConfigPath);
+    // Worker mode - load from worker.xml
+    const workerConfigPath = path.join(workspaceRoot, 'worker.xml');
+    workerConfig = parseWorkerXml(fs.readFileSync(workerConfigPath, 'utf8'));
     
     if (!workerConfig) {
       vscode.window.showErrorMessage('Worker config not found.');

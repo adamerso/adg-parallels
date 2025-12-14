@@ -23,7 +23,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { getNonce, getBaseStyles, getHeadScript } from './shared';
-import { ensureDir, pathExists, writeJson } from '../utils/file-operations';
+import { ensureDir, pathExists } from '../utils/file-operations';
 import { logger } from '../utils/logger';
 import { getSidebarProvider } from './sidebar-webview';
 import { 
@@ -33,6 +33,31 @@ import {
   generateLayerPrompt,
   ProjectSpec 
 } from '../core/project-spec-loader';
+
+// =============================================================================
+// HELPER: Write Worker XML
+// =============================================================================
+
+function writeWorkerXml(filePath: string, config: any): void {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<worker>
+  <worker_id>${config.workerId}</worker_id>
+  <role>${config.role}</role>
+  <parent_role>${config.parentRole}</parent_role>
+  <layer>${config.layer}</layer>
+  <project_spec>${config.projectSpec}</project_spec>
+  <paths>
+    <project_root>${config.paths.projectRoot}</project_root>
+    <worker_root>${config.paths.workerRoot}</worker_root>
+    <output_dir>${config.paths.outputDir}</output_dir>
+    <prompt_file>${config.paths.promptFile}</prompt_file>
+  </paths>
+  <created_at>${config.createdAt}</created_at>
+  <instructions_version>${config.instructionsVersion}</instructions_version>
+</worker>
+`;
+  fs.writeFileSync(filePath, xml, 'utf8');
+}
 
 // =============================================================================
 // TYPES
@@ -868,7 +893,7 @@ ${layer.reporting ? `## Reporting Instructions\n${layer.reporting}` : ''}
       instructionsVersion: '1.0',
     };
 
-    writeJson(path.join(workerDir, 'worker.json'), workerConfig);
+    writeWorkerXml(path.join(workerDir, 'worker.xml'), workerConfig);
 
     // Create initial heartbeat
     const heartbeat = `<?xml version="1.0" encoding="UTF-8"?>
@@ -998,6 +1023,10 @@ ${s.layers.map(layer => this._generateLayerXml(layer)).join('\n')}
   <settings>
     <health_monitoring enabled="true" interval_seconds="60"/>
     <max_retries>3</max_retries>
+    <finished_flag>
+      <filename>finished.flag.xml</filename>
+      <check_before_respawn>true</check_before_respawn>
+    </finished_flag>
   </settings>
 
 </project>

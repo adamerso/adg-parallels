@@ -69,20 +69,34 @@ export async function startProcessing(): Promise<void> {
     return;
   }
   
-  // Initialize task manager
-  const managementDir = path.join(projectRoot, '.adg-parallels', 'management');
-  const tasksFilePath = path.join(managementDir, `${spec.name}_adg-tasks.xml`);
+  // Get project directory from spec path
+  const projectDir = path.dirname(projectSpecPath);
   
+  // Initialize task manager - tasks file is in the project directory
+  const tasksFilePath = path.join(projectDir, 'tasks.xml');
+  
+  // Create empty tasks file if it doesn't exist
   if (!pathExists(tasksFilePath)) {
-    // Create empty tasks file if it doesn't exist
-    vscode.window.showWarningMessage('No tasks file found. Import tasks first.');
-    return;
+    const fs = await import('fs');
+    const emptyTasks = `<?xml version="1.0" encoding="UTF-8"?>
+<tasks>
+  <metadata>
+    <project>${spec.name}</project>
+    <created_at>${new Date().toISOString()}</created_at>
+  </metadata>
+  <task_list>
+  </task_list>
+</tasks>
+`;
+    fs.writeFileSync(tasksFilePath, emptyTasks, 'utf8');
+    logger.info('Created empty tasks.xml');
   }
   
   const taskManager = new TaskManager(tasksFilePath);
   
   // Create lifecycle manager and spawn workers for each layer
-  const lifecycleManager = createManagerLifecycle(managementDir, taskManager);
+  // Use project directory as management dir
+  const lifecycleManager = createManagerLifecycle(projectDir, taskManager);
   await lifecycleManager.initialize();
   
   let totalSpawned = 0;
