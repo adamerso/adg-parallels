@@ -9,7 +9,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { Task, TaskStats, Role } from '../types';
 import { TaskManager } from './task-manager';
-import { ensureDir, pathExists, writeJson, readJson } from '../utils/file-operations';
+import { ensureDir, pathExists } from '../utils/file-operations';
+import { saveXML, loadXML } from './xml-loader';
 import { logger } from '../utils/logger';
 
 // =============================================================================
@@ -163,20 +164,20 @@ export function generateCeoReport(
  * Save worker report to file
  */
 export function saveWorkerReport(workerDir: string, report: WorkerReport): void {
-  const reportPath = path.join(workerDir, 'status-report.json');
-  writeJson(reportPath, report);
+  const reportPath = path.join(workerDir, 'status-report.xml');
+  saveXML(reportPath, report, 'worker_report');
   logger.debug(`Worker report saved: ${report.workerId}`);
 }
 
 /**
  * Load worker report from file
  */
-export function loadWorkerReport(workerDir: string): WorkerReport | null {
-  const reportPath = path.join(workerDir, 'status-report.json');
+export async function loadWorkerReport(workerDir: string): Promise<WorkerReport | null> {
+  const reportPath = path.join(workerDir, 'status-report.xml');
   if (!pathExists(reportPath)) {
     return null;
   }
-  return readJson<WorkerReport>(reportPath);
+  return loadXML<WorkerReport>(reportPath);
 }
 
 /**
@@ -186,15 +187,15 @@ export function saveManagerReport(managementDir: string, report: ManagerReport):
   const reportsDir = path.join(managementDir, 'reports');
   ensureDir(reportsDir);
   
-  const reportPath = path.join(reportsDir, 'manager-report.json');
-  writeJson(reportPath, report);
+  const reportPath = path.join(reportsDir, 'manager-report.xml');
+  saveXML(reportPath, report, 'manager_report');
   
   // Also save historical report
   const historyPath = path.join(
     reportsDir, 
-    `report_${new Date().toISOString().replace(/[:.]/g, '-')}.json`
+    `report_${new Date().toISOString().replace(/[:.]/g, '-')}.xml`
   );
-  writeJson(historyPath, report);
+  saveXML(historyPath, report, 'manager_report');
   
   logger.debug(`Manager report saved: ${report.managerId}`);
 }
@@ -202,7 +203,7 @@ export function saveManagerReport(managementDir: string, report: ManagerReport):
 /**
  * Collect worker reports from all worker directories
  */
-export function collectWorkerReports(workersBaseDir: string): WorkerReport[] {
+export async function collectWorkerReports(workersBaseDir: string): Promise<WorkerReport[]> {
   if (!pathExists(workersBaseDir)) {
     return [];
   }
@@ -213,7 +214,7 @@ export function collectWorkerReports(workersBaseDir: string): WorkerReport[] {
   for (const entry of entries) {
     if (entry.isDirectory() && entry.name.startsWith('worker-')) {
       const workerDir = path.join(workersBaseDir, entry.name);
-      const report = loadWorkerReport(workerDir);
+      const report = await loadWorkerReport(workerDir);
       if (report) {
         reports.push(report);
       }
@@ -237,7 +238,7 @@ export async function generateAndSaveManagerReport(
   
   // Collect worker reports
   const workersBaseDir = path.join(path.dirname(managementDir), 'workers');
-  const workerReports = collectWorkerReports(workersBaseDir);
+  const workerReports = await collectWorkerReports(workersBaseDir);
   
   // Generate report
   const report = generateManagerReport(

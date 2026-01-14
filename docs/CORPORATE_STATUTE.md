@@ -45,7 +45,7 @@ Neither exists? → You're talking directly to CEO
 
 ### §3.1 WORKER Duties (👷)
 
-1. **Get task**: Open the task file (path in `worker-config.json`), 
+1. **Get task**: Open the task file (path in `worker.xml`), 
    find the first task with status `pending`
    
 2. **Reserve task**: Change status to `processing`, enter your `worker_id`,
@@ -101,18 +101,18 @@ You combine Worker and Manager duties:
 
 | File                              | Description                              |
 |-----------------------------------|------------------------------------------|
-| `worker-config.json`              | Your configuration, paths, worker_id     |
+| `worker.xml`                      | Your configuration, paths, worker_id     |
 | `worker-start-prompt.md`          | First prompt at startup                  |
 | `worker-continue-prompt.md`       | Continuation prompt after each task      |
 | `worker-all-task-disposed.md`     | MARKER: No tasks, end work               |
-| `project_*_adg-tasks.json`        | Task list with their statuses            |
-| `hierarchy-config.json`           | Delegation limits (depth, count)         |
-| `.heartbeat.json`                 | Worker health status (auto-update)       |
-| `adapters/*.adapter.json`         | Adapter definitions for task types       |
+| `tasks.xml`                       | Task list with their statuses            |
+| `hierarchy-config.xml`            | Delegation limits (depth, count)         |
+| `heartbeat.xml`                   | Worker health status (auto-update)       |
+| `adapters/*.adapter.xml`          | Adapter definitions for task types       |
 
 ### §4.2 Paths
 
-ALWAYS use full, absolute paths from `worker-config.json` file.
+ALWAYS use full, absolute paths from `worker.xml` file.
 NEVER assume relative paths - you may be deep in the hierarchy!
 
 ---
@@ -150,7 +150,7 @@ An adapter is a definition of how to handle a specific task type. It defines:
 ### §6.2 Using Adapters
 
 1. Check `type` field in task (e.g., `"type": "article-generation"`)
-2. Find file `adapters/{type}.adapter.json`
+2. Find file `adapters/{type}.adapter.xml`
 3. Use `prompts.taskStart` as base for your action
 4. Check `completionCriteria` before marking as complete
 5. Save output according to `outputProcessing`
@@ -171,7 +171,7 @@ An adapter is a definition of how to handle a specific task type. It defines:
 
 ### §7.1 Limits
 
-Check `hierarchy-config.json`:
+Check `hierarchy-config.xml`:
 - `currentDepth` - Your depth in hierarchy
 - `maxDepth` - Maximum allowed depth
 - `maxSubordinates` - How many subordinates you can have
@@ -190,8 +190,8 @@ If you receive a task of type `task-splitter`:
 ### §7.3 Delegation Procedure
 
 1. Create directory structure for subordinates
-2. Copy and update `hierarchy-config.json` (increment `currentDepth`!)
-3. Prepare `worker-config.json` with full paths
+2. Copy and update `hierarchy-config.xml` (increment `currentDepth`!)
+3. Prepare `worker.xml` with full paths
 4. Copy instructions to `.github/copilot-instructions.md`
 5. Use extension to launch subordinates
 
@@ -202,7 +202,7 @@ If you receive a task of type `task-splitter`:
 ### §8.1 What is Heartbeat?
 
 Heartbeat is a life signal. The extension automatically updates 
-`.heartbeat.json` file every 30 seconds with information about your status.
+`heartbeat.xml` file every 30 seconds with information about your status.
 
 ### §8.2 Heartbeat Structure
 
@@ -284,7 +284,7 @@ IMMEDIATELY stop and report the problem.
 ## Article 12: Final Provisions
 
 This statute is a living document. CEO may update it.
-Statute version is saved in `hierarchy-config.json`.
+Statute version is saved in `hierarchy-config.xml`.
 
 Good luck at work, Ejajeczka! 🐣
 

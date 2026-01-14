@@ -1,9 +1,4 @@
-# 🥚 ADG-Parallels  
-
-### READ RELEASE DESCRIPTION FOR MORE ACTUAL DETAILS :)
-
-
-
+# 🥚 ADG-Parallels v0.4.2
 
 ### _AI Delegation Grid — Because one AI is never enough._
 
@@ -11,247 +6,247 @@
 
 ## 🚀 What is ADG-Parallels?
 
-ADG-Parallels is a VS Code extension concept that turns your editor into a  
-**distributed AI workforce** with hierarchy, automation, self-healing, and  
-a hint of corporate nonsense.
+ADG-Parallels is a **fully functional VS Code extension** that transforms your editor into a **distributed AI workforce** with hierarchy, automation, self-healing, and file-based communication.
 
 Think of it as:
 
-- Kubernetes, but for Copilot.
-- A tiny startup inside your VS Code windows.
-- A company where you are the CEO and all employees are polite little AI agents  
-  (internally known as *EggBots™*, formerly “Ejajkas”).
+- **Kubernetes, but for Copilot sessions**
+- A tiny AI startup inside your VS Code windows
+- A company where you are the **CEO** and all employees are polite little AI agents  
+  (internally known as *EggBots™*)
 
-It coordinates multiple AI sessions, delegates work, splits mega-tasks, and watches over workers like a very overcaffeinated project manager.
-
-This repository currently contains the **vision**, **roadmap**, and **corporate statute** of this… organization.
-
-Yes, we wrote a statute for AI employees. And yes, they follow it.  
-We live in the future.
+The extension:
+- Coordinates multiple VS Code windows running AI sessions
+- Delegates work using XML-based task queues
+- Monitors workers via heartbeat system
+- Auto-restarts frozen or unresponsive workers
+- Supports hierarchical delegation (Manager → TeamLeader → Worker)
 
 ---
 
-## ✨ Why Does This Exist?
+## ✨ Key Features (v0.4.x)
 
-Because Copilot (and every other LLM assistant) can:
+### ✅ Implemented
+- **Worker Spawning** — Automatically opens N VS Code windows as workers
+- **XML Task Queue** — All tasks managed in `tasks.xml` with atomic updates
+- **Heartbeat System** — Workers send "I'm alive" pings every 30 seconds
+- **Health Monitoring** — Detects frozen workers and restarts them
+- **Adapter System** — Task types defined via XML adapters (translation, code-generation, etc.)
+- **Hierarchical Roles** — CEO (human), Manager (Claude), TeamLeader (hybrid), Worker (GPT)
+- **Sidebar UI** — Real-time monitoring panel with controls
+- **Project Wizard** — Interactive project setup via wizard
+- **Upward Reporting** — Workers report status to managers via XML files
 
-- solve one task at a time,  
-- in one window,  
-- with one brain cell.
-
-…while you are paying for **8+ parallel sessions** that just sit there doing nothing.
-
-We fix that.
-
-ADG-Parallels aims to:
-
-- spawn multiple VS Code windows (“workers”)  
-- delegate tasks between them  
-- auto-start and auto-continue Copilot  
-- detect when they finish or hang  
-- restart zombie workers  
-- and allow a Manager AI to coordinate everything
-
-Basically:  
-**Copilot Swarm → but make it corporate and cute.**
+### 🔜 Coming Soon
+- Dashboard for visual worker monitoring
+- Mega-task auto-splitting
+- Result aggregation and merging
+- External adapter marketplace
 
 ---
 
 ## 🧠 Roles in This AI Corporation
 
-Inside ADG-Parallels, every VS Code window becomes a character in our little corporate sitcom:
-
-| Role | Emoji | Description |
-|------|-------|-------------|
-| **CEO** | 🧑 | You. Supreme overlord. Defines goals. Drinks coffee. |
-| **Manager** | 👔 | High-level AI (e.g., Claude Opus). Delegates tasks downward. |
-| **Team Leader** | 👨‍💼 | Hybrid AI — works AND delegates. Middle management energy. |
-| **Worker** | 👷 | GPT-powered workhorse doing individual tasks. |
-
-Workers behave.  
-Managers gossip.  
-Team Leaders pretend they know what's going on.  
-CEO wonders why everything is taking so long.
-
-Corporate realism at its finest.
+| Role | Emoji | Model | Description |
+|------|-------|-------|-------------|
+| **CEO** | 🧑 | Human | You. Supreme overlord. Defines goals. |
+| **Manager** | 👔 | Claude Opus | High-level AI. Delegates tasks downward. |
+| **Team Leader** | 👨‍💼 | Hybrid | Works AND delegates. Middle management. |
+| **Worker** | 👷 | GPT-4o | Workhorse doing individual tasks. |
 
 ---
 
-## 🏗️ High-Level Architecture (Simple Version)
+## 🏗️ Architecture
+
 ```
 CEO (You)
-│
-▼
+    │
+    ▼
 Manager AI (Claude Opus)
-│
-├── Team Leader AI(s)
-│ │
-│ └── Worker 1…N (VS Code windows)
-│
-└── Worker Pool (GPT-4o, 4o-mini, etc.)
+    │
+    ├── Team Leader AI(s)
+    │       │
+    │       └── Worker 1…N (VS Code windows)
+    │
+    └── Worker Pool (GPT-4o, 4o-mini)
 ```
 
-
-All communication happens through a shared folder:  
-`.adg-parallels/` — the secret underground HQ of all EggBots™.
-
----
-
-## 🔧 Key Features (Concept Phase)
-
-### MVP
-- Automatic project provisioning
-- Spawn N workers in separate VS Code windows
-- Auto-start Copilot with start prompts
-- Auto-resume work when Copilot finishes
-- JSON task queue with statuses
-- “No tasks left → close worker window gracefully”
-
-### Next Phases
-- Dashboard for monitoring workers
-- Pause/Resume entire workforce
-- Adapter system (task plugins)
-- Mega-task splitting (“write 100 articles” → auto-generated subtasks)
-- Heartbeat & self-healing (detecting frozen workers)
-- Hierarchical delegation (Team Leaders managing sub-workers)
-
-Full details in:
-
-- [PROJECT_VISION.md](docs/PROJECT_VISION.md)  
-- [PROJECT_ROADMAP.md](docs/PROJECT_ROADMAP.md)  
-- [CORPORATE_STATUTE.md](docs/CORPORATE_STATUTE.md) (yes, we have a statute) 🥚
+All communication happens through **XML files** in the project folder:
+- `tasks.xml` — Task queue with statuses
+- `worker.xml` — Worker configuration
+- `heartbeat.xml` — Health status pings
+- `finished.flag.xml` — Completion signals
 
 ---
 
-## 🪄 The Adapter System (aka: “Teach Workers New Tricks”)
+## 📦 Project Structure
 
-Each task has a `type`, e.g.:
+```
+root_of_project_{name}/
+├── project-spec.xml           # Project configuration
+├── tasks.xml                  # Task list with statuses
+├── hierarchy-config.xml       # Delegation limits (optional)
+├── finished.flag.xml          # Created when all tasks done
+├── input/                     # Input files for processing
+├── workdir/                   # Working directory
+├── output/                    # Generated outputs
+├── logs/                      # Execution logs
+├── prompts/
+│   └── layer_*_prompt.md      # Instructions per layer
+└── workers/
+    ├── worker-L1-1/
+    │   ├── worker.xml         # Worker config & state
+    │   ├── heartbeat.xml      # Health status
+    │   └── instructions.md    # Task instructions
+    └── worker-L1-2/
+        └── ...
+```
 
-- `article-generation`
-- `translation`
-- `code-audit`
-- `task-splitter`
-- `generic`
+---
+
+## 🪄 The Adapter System
+
+Each task has a `type` that maps to an **XML adapter**:
+
+| Adapter | Purpose |
+|---------|---------|
+| `translation` | Translate documents between languages |
+| `code-generation` | Generate code from specifications |
+| `article-with-audit` | Write articles with fact-checking |
+| `research-report` | Research and report generation |
+| `adapter-generator` | Create new adapters (meta!) |
 
 Adapters define:
+- Start prompts (system + user)
+- Output rules and formats
+- Completion criteria
+- File naming conventions
+- Validation steps
 
-- start prompts  
-- output rules  
-- completion criteria  
-- how to save files  
-- retries & validation  
-
-Workers simply follow orders like good little digital employees.
-
----
-
-## 🪓 Mega-Task Splitting
-
-The CEO can say:
-
-> “Write 100 cooking articles.”
-
-And the Manager AI will:
-
-- detect mega-task  
-- split into 100 subtasks  
-- assign them to workers  
-- collect results  
-- merge everything back
-
-This is basically project management, except nobody complains about meetings.
+Built-in adapters are stored in:  
+`resources/adapters/*.adapter.xml`
 
 ---
 
-## 💓 Heartbeat & Worker Self-Healing
+## 💓 Heartbeat & Self-Healing
 
-Every worker sends a small “I’m alive” ping every 30 seconds.
+Every worker writes a heartbeat file every **30 seconds**:
 
-If a worker doesn’t ping:
-
-- Manager marks it as unresponsive  
-- Closes the window  
-- Reassigns the task  
-- Launches a fresh worker  
-
-A fully automated “IT guy walking around restarting computers”.
-
----
-
-## 📦 File Structure Overview
-
-```
-.adg-parallels/
-management/
-project_tasks.json
-hierarchy-config.json
-attachments/
-
-worker/
-worker-config.json
-worker-start-prompt.md
-worker-continue-prompt.md
-.heartbeat.json
-
-adapters/
-article-generation.adapter.json
-translation.adapter.json
-code-audit.adapter.json
-task-splitter.adapter.json
-
-jobs/
-worker_1/
-worker_2/
-worker_3/
+```xml
+<heartbeat>
+  <workerId>worker-L1-1</workerId>
+  <timestamp>2025-01-15T10:30:00.000Z</timestamp>
+  <status>working</status>
+  <currentTask>task-001</currentTask>
+  <cpuLoad>25</cpuLoad>
+  <memoryUsage>512</memoryUsage>
+</heartbeat>
 ```
 
-Workers are literally launched into their own tiny universe (folder).  
-It’s adorable.
+If a worker stops responding:
+1. Manager detects timeout (no heartbeat > 60s)
+2. Marks worker as unresponsive
+3. Closes the zombie window
+4. Reassigns the task to queue
+5. Spawns fresh worker
+
+**Fully automated IT support!**
 
 ---
 
-## 🎯 Target Audience
+## 🎮 How to Use
 
-- AI power users  
-- Copilot Pro users who want more than “one tab at a time”  
-- Content creators  
-- Agencies requiring mass automation  
-- Developers doing parallel refactoring / audits  
-- People who enjoy yelling “GO LITTLE WORKERS, GO!” at their monitor  
+### 1. Open ADG-Parallels Sidebar
+Click the 🥚 icon in VS Code Activity Bar
+
+### 2. Create or Open a Project
+- Use **"Create New Project"** wizard
+- Or open an existing `root_of_project_*` folder
+
+### 3. Configure Tasks
+Edit `tasks.xml` with your task list:
+
+```xml
+<tasks>
+  <task id="001" type="translation" status="pending" priority="1">
+    <title>Translate README to Polish</title>
+    <input>README.md</input>
+    <output>README_PL.md</output>
+  </task>
+</tasks>
+```
+
+### 4. Start Processing
+Click **"Start Processing"** — workers spawn automatically
+
+### 5. Monitor Progress
+Watch the sidebar for real-time status updates
 
 ---
 
-## 🧪 Status of the Project
+## 🔧 Configuration
 
-> **🟡 Concept Phase — Implementation Begins Soon**  
-This repository currently contains documentation, architecture and early planning.
+### hierarchy-config.xml (optional)
+```xml
+<hierarchyConfig>
+  <layer level="1" maxChildren="4" role="Manager" />
+  <layer level="2" maxChildren="8" role="Worker" />
+</hierarchyConfig>
+```
 
-Once the scaffolding is ready, the real fun begins (worker orchestration, dashboards, adapters, hierarchy…).
+### project-spec.xml
+```xml
+<projectSpec>
+  <name>my-project</name>
+  <description>Project description</description>
+  <workerCount>4</workerCount>
+  <adapterType>translation</adapterType>
+  <inputFolder>input</inputFolder>
+  <outputFolder>output</outputFolder>
+</projectSpec>
+```
+
+---
+
+## 🧪 Project Status
+
+> **🟢 Alpha — Functional with Active Development**
+
+Version 0.4.2 includes:
+- ✅ Working worker spawning
+- ✅ XML-based communication (migrated from JSON)
+- ✅ Heartbeat monitoring
+- ✅ Task queue management
+- ✅ Adapter system
+- ✅ Sidebar UI
+
+---
+
+## 📚 Documentation
+
+- [PROJECT_VISION.md](docs/PROJECT_VISION.md) — Long-term vision
+- [PROJECT_ROADMAP.md](docs/PROJECT_ROADMAP.md) — Development roadmap
+- [CORPORATE_STATUTE.md](docs/CORPORATE_STATUTE.md) — AI employee rules 🥚
 
 ---
 
 ## 🤝 Contributing
 
-Contributions, ideas, and feedback are welcome!  
-Especially from humans (EggBots™ are not allowed to contribute to the repo yet — HR said no).
+Contributions, ideas, and feedback are welcome!
 
-If you find this concept interesting, want to collaborate, or just want to say hi:
-
-- Open an issue to discuss ideas  
-- Star the repo to show support ⭐  
-- Watch for updates — implementation is coming soon!
-
-We're building this fast, but good ideas are always welcome.
+- Open an issue to discuss ideas
+- Star the repo to show support ⭐
+- PRs welcome for bug fixes and features
 
 ---
 
 ## 📜 License
 
-TBD — likely MIT or AGPL.
+MIT License — See [LICENSE](LICENSE)
 
 ---
 
 ## ⭐ If you like the project, consider starring the repo.
 
 EggBots™ get very excited when they see stars.  
-(It’s in their corporate statute. Probably.)
+(It's in their corporate statute. Probably.)

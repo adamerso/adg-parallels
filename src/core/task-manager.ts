@@ -223,7 +223,8 @@ ${taskElements}
     if (this.isXmlFormat) {
       return this.loadXml();
     }
-    return this.loadSync();
+    // JSON format - use readJson helper
+    return readJson<ProjectTasks>(this.tasksFilePath);
   }
 
   /**
@@ -1027,17 +1028,17 @@ ${taskElements}
 /**
  * Find tasks file in a directory
  * 
- * Searches for task file: tasks.xml (new) or project_*_adg-tasks.json (legacy)
+ * Searches for task file: tasks.xml (primary format)
  */
 export function findTasksFile(managementDir: string): string | null {
-  // New format: tasks.xml in project directory
+  // Primary format: tasks.xml in project directory
   const tasksXmlPath = require('path').join(managementDir, 'tasks.xml');
   if (pathExists(tasksXmlPath)) {
     return tasksXmlPath;
   }
   
-  // Legacy format: project_*_adg-tasks.json
-  const files = findFiles(managementDir, /^project_.*_adg-tasks\.json$/);
+  // Also check for project_*_tasks.xml naming convention
+  const files = findFiles(managementDir, /^(project_.*_)?tasks\.xml$/);
   if (files.length > 0) {
     return files[0];
   }

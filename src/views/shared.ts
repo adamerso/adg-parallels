@@ -72,6 +72,8 @@ export function getHeadScript(nonce: string): string {
                 msg.index = parseInt(value);
               } else if (cmd === 'incrementWorkforce') {
                 msg.delta = parseInt(value);
+              } else if (cmd === 'incrementContinuation') {
+                msg.delta = parseInt(value);
               } else {
                 msg.value = value;
               }

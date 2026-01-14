@@ -210,7 +210,7 @@ export class ADGSidebarProvider implements vscode.TreeDataProvider<SidebarItem> 
     // === HEADER ===
     const header = new SidebarItem('header', 'ADG-Parallels');
     header.iconPath = new vscode.ThemeIcon('symbol-namespace');
-    header.description = 'v0.3.0';
+    header.description = 'v0.4.2';
     items.push(header);
     
     // === STATS ===

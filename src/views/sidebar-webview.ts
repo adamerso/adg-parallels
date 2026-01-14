@@ -545,7 +545,7 @@ export class ADGSidebarWebviewProvider implements vscode.WebviewViewProvider {
         <span>🥚</span>
         <span>ADG-Parallels</span>
       </h1>
-      <div class="version">v0.3.0</div>
+      <div class="version">v0.4.2</div>
     </div>
     
     <!-- Stats -->

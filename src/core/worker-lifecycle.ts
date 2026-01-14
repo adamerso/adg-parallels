@@ -21,8 +21,6 @@ import {
 } from '../types';
 import { 
   pathExists, 
-  readJson, 
-  writeJson, 
   withLock,
   ensureDir
 } from '../utils/file-operations';
@@ -139,10 +137,7 @@ export class WorkerLifecycleManager {
    */
   private async loadWorkerInfo(workerId: string, workerDir: string): Promise<WorkerInfo | null> {
     const configPath = path.join(workerDir, 'worker.xml');
-    // v0.3.0: Support both XML and JSON heartbeat, prefer XML
-    const heartbeatXmlPath = path.join(workerDir, 'heartbeat.xml');
-    const heartbeatJsonPath = path.join(workerDir, 'heartbeat.json');
-    const heartbeatPath = pathExists(heartbeatXmlPath) ? heartbeatXmlPath : heartbeatJsonPath;
+    const heartbeatPath = path.join(workerDir, 'heartbeat.xml');
     const instructionsPath = path.join(workerDir, 'instructions.md');
     const outputDir = path.join(workerDir, 'output');
 
@@ -157,23 +152,17 @@ export class WorkerLifecycleManager {
       }
     }
     
-    // v0.3.0: Load heartbeat from XML or fallback to JSON
+    // Load heartbeat from XML
     let heartbeat: HeartbeatXML | undefined;
-    if (pathExists(heartbeatXmlPath)) {
-      heartbeat = await loadXML<HeartbeatXML>(heartbeatXmlPath) ?? undefined;
-    } else if (pathExists(heartbeatJsonPath)) {
-      // Convert JSON to XML format for compatibility
-      const jsonHeartbeat = readJson<WorkerHeartbeat>(heartbeatJsonPath);
-      if (jsonHeartbeat) {
-        heartbeat = this.convertJsonHeartbeatToXml(jsonHeartbeat);
-      }
+    if (pathExists(heartbeatPath)) {
+      heartbeat = await loadXML<HeartbeatXML>(heartbeatPath) ?? undefined;
     }
 
     return {
       workerId,
       workerDir,
       configPath,
-      heartbeatPath: heartbeatXmlPath,  // Always use XML path for new writes
+      heartbeatPath,  // XML path for writes
       instructionsPath,
       outputDir,
       config: config ?? undefined,
@@ -392,7 +381,7 @@ You are an ADG-Parallels **Worker** (id: ${config.workerId}).
 
 ## Critical Rules
 - Only work on ONE task at a time
-- Update heartbeat.json regularly to show you're alive
+- Update heartbeat.xml regularly to show you're alive
 - If you encounter an error, update task status with lastError
 - Do not modify tasks assigned to other workers
 - Check for new tasks after completing each one
@@ -446,14 +435,27 @@ Good luck, worker! 🚀
         workerDir: workerInfo.workerDir 
       });
       
-      // Simple approach - just open the folder in a new window
-      // Extension will be loaded if installed, or user can run commands manually
+      // Verify worker directory and config exist before opening
+      if (!pathExists(workerInfo.workerDir)) {
+        logger.error(`❌ Worker directory does not exist: ${workerInfo.workerDir}`);
+        return false;
+      }
+      if (!pathExists(workerInfo.configPath)) {
+        logger.error(`❌ Worker config does not exist: ${workerInfo.configPath}`);
+        return false;
+      }
+      
       const uri = vscode.Uri.file(workerInfo.workerDir);
       
       // Show notification to user
       vscode.window.showInformationMessage(`🥚 Opening worker: ${workerInfo.workerId}`);
       
+      // Open folder in new window
       await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+      
+      // Give the new window time to fully initialize
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
       logger.info(`✅ Spawned worker window: ${workerInfo.workerId}`);
       return true;
     } catch (error) {
@@ -474,8 +476,8 @@ Good luck, worker! 🚀
       if (worker) {
         workers.push(worker);
         await this.spawnWorker(worker);
-        // Small delay between spawns to avoid overwhelming
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Larger delay between spawns to allow windows to fully initialize
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
 
@@ -522,17 +524,11 @@ Good luck, worker! 🚀
         continue;
       }
 
-      // v0.3.0: Reload heartbeat from XML or JSON
+      // Reload heartbeat from XML
       const heartbeatXmlPath = path.join(worker.workerDir, 'heartbeat.xml');
-      const heartbeatJsonPath = path.join(worker.workerDir, 'heartbeat.json');
       
       if (pathExists(heartbeatXmlPath)) {
         worker.heartbeat = await loadXML<HeartbeatXML>(heartbeatXmlPath) ?? undefined;
-      } else if (pathExists(heartbeatJsonPath)) {
-        const jsonHeartbeat = readJson<WorkerHeartbeat>(heartbeatJsonPath);
-        if (jsonHeartbeat) {
-          worker.heartbeat = this.convertJsonHeartbeatToXml(jsonHeartbeat);
-        }
       }
 
       worker.isHealthy = this.isHeartbeatHealthy(worker.heartbeat);

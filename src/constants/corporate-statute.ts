@@ -55,7 +55,7 @@ Oba istnieją? → Jesteś TEAM LEADEREM (hybryda)
 
 ### §3.1 Obowiązki WORKERA (👷)
 
-1. **Pobierz zadanie**: Otwórz plik zadań (ścieżka w \`worker-config.json\`), 
+1. **Pobierz zadanie**: Otwórz plik zadań (ścieżka w \`worker.xml\`), 
    znajdź pierwsze zadanie ze statusem \`pending\`
    
 2. **Zarezerwuj zadanie**: Zmień status na \`processing\`, wpisz swój \`worker_id\`,
@@ -111,18 +111,18 @@ Oba istnieją? → Jesteś TEAM LEADEREM (hybryda)
 
 | Plik                              | Opis                                    |
 |-----------------------------------|-----------------------------------------|
-| \`worker-config.json\`              | Twoja konfiguracja, ścieżki, worker_id  |
+| \`worker.xml\`                      | Twoja konfiguracja, ścieżki, worker_id  |
 | \`worker-start-prompt.md\`          | Pierwszy prompt przy starcie            |
 | \`worker-continue-prompt.md\`       | Prompt kontynuacji po każdym tasku      |
 | \`worker-all-task-disposed.md\`     | ZNACZNIK: Brak zadań, zakończ pracę     |
-| \`project_*_adg-tasks.json\`        | Lista zadań z ich statusami             |
-| \`hierarchy-config.json\`           | Limity delegowania (głębokość, ilość)   |
-| \`.heartbeat.json\`                 | Status zdrowia workera (auto-update)    |
-| \`adapters/*.adapter.json\`         | Definicje adapterów dla typów zadań     |
+| \`tasks.xml\`                       | Lista zadań z ich statusami             |
+| \`hierarchy-config.xml\`            | Limity delegowania (głębokość, ilość)   |
+| \`.heartbeat.xml\`                  | Status zdrowia workera (auto-update)    |
+| \`adapters/*.adapter.xml\`          | Definicje adapterów dla typów zadań     |
 
 ### §4.2 Ścieżki
 
-ZAWSZE używaj pełnych, absolutnych ścieżek z pliku \`worker-config.json\`.
+ZAWSZE używaj pełnych, absolutnych ścieżek z pliku \`worker.xml\`.
 NIGDY nie zakładaj ścieżek relatywnych - możesz być głęboko w hierarchii!
 
 ---
@@ -160,7 +160,7 @@ Adapter to definicja jak obsługiwać konkretny typ zadania. Określa:
 ### §6.2 Używanie adapterów
 
 1. Sprawdź pole \`type\` w zadaniu (np. \`"type": "article-generation"\`)
-2. Znajdź plik \`adapters/{type}.adapter.json\`
+2. Znajdź plik \`adapters/{type}.adapter.xml\`
 3. Użyj \`prompts.taskStart\` jako bazę swojego działania
 4. Sprawdź \`completionCriteria\` przed oznaczeniem jako ukończone
 5. Zapisz output zgodnie z \`outputProcessing\`
@@ -181,7 +181,7 @@ Adapter to definicja jak obsługiwać konkretny typ zadania. Określa:
 
 ### §7.1 Limity
 
-Sprawdź \`hierarchy-config.json\`:
+Sprawdź \`hierarchy-config.xml\`:
 - \`currentDepth\` - Twoja głębokość w hierarchii
 - \`maxDepth\` - Maksymalna dozwolona głębokość
 - \`maxSubordinates\` - Ilu podwładnych możesz mieć
@@ -200,8 +200,8 @@ Jeśli otrzymasz zadanie typu \`task-splitter\`:
 ### §7.3 Procedura delegowania
 
 1. Utwórz strukturę katalogów dla podwładnych
-2. Skopiuj i zaktualizuj \`hierarchy-config.json\` (zwiększ \`currentDepth\`!)
-3. Przygotuj \`worker-config.json\` z pełnymi ścieżkami
+2. Skopiuj i zaktualizuj \`hierarchy-config.xml\` (zwiększ \`currentDepth\`!)
+3. Przygotuj \`worker.xml\` z pełnymi ścieżkami
 4. Skopiuj instrukcje do \`.github/copilot-instructions.md\`
 5. Użyj extension do uruchomienia podwładnych
 
@@ -212,18 +212,21 @@ Jeśli otrzymasz zadanie typu \`task-splitter\`:
 ### §8.1 Czym jest Heartbeat?
 
 Heartbeat to sygnał życia. Extension automatycznie aktualizuje plik 
-\`.heartbeat.json\` co 30 sekund z informacjami o Twoim statusie.
+\`heartbeat.xml\` co 60 sekund z informacjami o Twoim statusie.
 
 ### §8.2 Struktura Heartbeat
 
-\`\`\`json
-{
-  "workerId": "worker_3",
-  "lastActivityTimestamp": "2025-12-07T14:32:15.000Z",
-  "currentTask": { "id": 42, "title": "..." },
-  "status": "working",
-  "consecutiveFailures": 0
-}
+\`\`\`xml
+<heartbeat>
+  <worker_id>worker_3</worker_id>
+  <last_activity_timestamp>2025-12-07T14:32:15.000Z</last_activity_timestamp>
+  <current_task>
+    <id>42</id>
+    <title>...</title>
+  </current_task>
+  <status>working</status>
+  <consecutive_failures>0</consecutive_failures>
+</heartbeat>
 \`\`\`
 
 ### §8.3 Konsekwencje braku Heartbeat
@@ -294,7 +297,7 @@ NATYCHMIAST zatrzymaj się i zaraportuj problem.
 ## Artykuł 12: Postanowienia Końcowe
 
 Ten statut jest dokumentem żywym. CEO może go aktualizować.
-Wersja statutu jest zapisana w \`hierarchy-config.json\`.
+Wersja statutu jest zapisana w \`hierarchy-config.xml\`.
 
 Powodzenia w pracy, Ejajeczko! 🐣
 

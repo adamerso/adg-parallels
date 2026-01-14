@@ -31,7 +31,7 @@ import {
   generateAndSaveManagerReport,
   formatManagerReportAsMarkdown
 } from '../core/upward-reporting';
-import { ensureDir, pathExists, writeJson, readJson } from '../utils/file-operations';
+import { ensureDir, pathExists } from '../utils/file-operations';
 import { logger } from '../utils/logger';
 import { getSidebarProvider } from '../views/sidebar-webview';
 
@@ -201,7 +201,7 @@ export async function provisionProject(): Promise<void> {
   } else {
     vscode.window.showInformationMessage(
       `Project "${projectCodename}" provisioned! ` +
-      `Add tasks to .adg-parallels/management/project_${projectCodename}_adg-tasks.json`
+      `Add tasks to .adg-parallels/management/tasks.xml`
     );
   }
 
@@ -210,7 +210,7 @@ export async function provisionProject(): Promise<void> {
     workspaceRoot,
     '.adg-parallels',
     'management',
-    `project_${projectCodename}_adg-tasks.json`
+    `tasks.xml`
   );
   const doc = await vscode.workspace.openTextDocument(tasksFilePath);
   await vscode.window.showTextDocument(doc);
@@ -235,129 +235,147 @@ async function createProjectStructure(
   ensureDir(adaptersDir);
   ensureDir(workersDir);
 
-  // Create hierarchy config
-  const hierarchyConfig = {
-    maxDepth: 3,
-    currentDepth: 0,
-    levelConfig: [
-      { level: 0, role: 'ceo', canDelegate: true, maxSubordinates: 1, subordinateRole: 'manager' },
-      { level: 1, role: 'manager', canDelegate: true, maxSubordinates: 10, subordinateRole: 'worker' },
-      { level: 2, role: 'worker', canDelegate: false, maxSubordinates: 0, subordinateRole: null },
-    ],
-    healthMonitoring: {
-      enabled: true,
-      heartbeatIntervalSeconds: 30,
-      unresponsiveThresholdSeconds: 90,
-      maxConsecutiveFailures: 3,
-      autoRestart: true,
-      alertCeoOnFaulty: true,
-    },
-    adapters: {
-      path: './adapters',
-      defaultAdapter: options.taskType,
-      availableAdapters: [options.taskType],
-    },
-    emergencyBrake: {
-      maxTotalInstances: 10,
-      maxTasksPerWorker: 5,
-      timeoutMinutes: 60,
-    },
-  };
+  // Create hierarchy config (XML format)
+  const hierarchyConfigXml = `<?xml version="1.0" encoding="UTF-8"?>
+<hierarchy_config>
+  <max_depth>3</max_depth>
+  <current_depth>0</current_depth>
+  <levels>
+    <level level="0">
+      <role>ceo</role>
+      <can_delegate>true</can_delegate>
+      <max_subordinates>1</max_subordinates>
+      <subordinate_role>manager</subordinate_role>
+    </level>
+    <level level="1">
+      <role>manager</role>
+      <can_delegate>true</can_delegate>
+      <max_subordinates>10</max_subordinates>
+      <subordinate_role>worker</subordinate_role>
+    </level>
+    <level level="2">
+      <role>worker</role>
+      <can_delegate>false</can_delegate>
+      <max_subordinates>0</max_subordinates>
+      <subordinate_role>none</subordinate_role>
+    </level>
+  </levels>
+  <health_monitoring>
+    <enabled>true</enabled>
+    <heartbeat_interval_seconds>30</heartbeat_interval_seconds>
+    <unresponsive_threshold_seconds>90</unresponsive_threshold_seconds>
+    <max_consecutive_failures>3</max_consecutive_failures>
+    <auto_restart>true</auto_restart>
+    <alert_ceo_on_faulty>true</alert_ceo_on_faulty>
+  </health_monitoring>
+  <adapters>
+    <path>./adapters</path>
+    <default_adapter>${options.taskType}</default_adapter>
+    <available_adapters>
+      <adapter>${options.taskType}</adapter>
+    </available_adapters>
+  </adapters>
+  <emergency_brake>
+    <max_total_instances>10</max_total_instances>
+    <max_tasks_per_worker>5</max_tasks_per_worker>
+    <timeout_minutes>60</timeout_minutes>
+  </emergency_brake>
+</hierarchy_config>
+`;
 
-  writeJson(path.join(managementDir, 'hierarchy-config.json'), hierarchyConfig);
+  fs.writeFileSync(path.join(managementDir, 'hierarchy-config.xml'), hierarchyConfigXml, 'utf8');
 
-  // Create project tasks file
-  const tasksFilePath = path.join(
-    managementDir,
-    `project_${options.projectCodename}_adg-tasks.json`
-  );
+  // Create project tasks file (XML format)
+  const tasksFilePath = path.join(managementDir, `tasks.xml`);
 
-  // Hardcoded sample tasks for testing - 4 fun Polish articles! 🇵🇱🥚
-  const sampleTasks: Array<Omit<Task, 'id' | 'retryCount' | 'maxRetries'>> = [
-    {
-      type: options.taskType,
-      title: 'Jak koty podbijają internet',
-      description: 'Napisz zabawny artykuł po polsku o fenomenie kotów w internecie. Opisz słynne koty-gwiazdy (Grumpy Cat, Keyboard Cat, Nyan Cat), wyjaśnij dlaczego ludzie kochają kotocontent, i dodaj statystyki o miliardach wyświetleń. Zakończ teorią spiskową, że koty celowo manipulują algorytmami.',
-      status: 'pending',
-      params: { 
-        language: 'polski',
-        wordCount: 700,
-        tone: 'humorystyczny, z przymrużeniem oka',
-        keywords: 'koty, internet, memy, viral, Grumpy Cat, social media'
-      },
-    },
-    {
-      type: options.taskType,
-      title: 'Przewodnik po najdziwniejszych sportach świata',
-      description: 'Napisz artykuł po polsku o 5 najdziwniejszych dyscyplinach sportowych na świecie. Uwzględnij: rzucanie telefonami komórkowymi (Finlandia), wyścigi z żonami (Estonia), bieg z serem (UK), ekstremalne prasowanie (UK), szachy bokserskie. Opisz zasady i historię każdej dyscypliny.',
-      status: 'pending',
-      params: { 
-        language: 'polski',
-        wordCount: 800,
-        tone: 'informacyjny ale lekki',
-        keywords: 'dziwne sporty, konkurencje, świat, Finlandia, Estonia'
-      },
-    },
-    {
-      type: options.taskType,
-      title: 'Dlaczego programiści piją tyle kawy',
-      description: 'Napisz artykuł po polsku wyjaśniający kulturę picia kawy wśród programistów. Opisz stereotypy, prawdziwe powody (noc przed deadline), ulubione kawy dev-ów, kawowe memy i żarty branżowe. Dodaj sekcję "Jak przeżyć dzień bez kawy (spoiler: nie da się)".',
-      status: 'pending',
-      params: { 
-        language: 'polski',
-        wordCount: 600,
-        tone: 'samokrytyczny, żartobliwy, insider',
-        keywords: 'programiści, kawa, IT, kofeina, debug, deadline'
-      },
-    },
-    {
-      type: options.taskType,
-      title: 'Kosmiczne rekordy Guinnessa',
-      description: 'Napisz fascynujący artykuł po polsku o najciekawszych rekordach ustanowionych w kosmosie. Uwzględnij: najdłuższy pobyt (Walerij Polakow), najwięcej spacerów kosmicznych, pierwszy ślub w kosmosie, najdalsza podróż człowieka, najdłuższy lot bez przerwy. Dodaj ciekawostki o życiu codziennym astronautów.',
-      status: 'pending',
-      params: { 
-        language: 'polski',
-        wordCount: 750,
-        tone: 'fascynujący, edukacyjny',
-        keywords: 'kosmos, rekordy, astronauci, ISS, NASA, Guinness'
-      },
-    },
-  ];
+  // Create tasks.xml with sample tasks
+  const tasksXml = `<?xml version="1.0" encoding="UTF-8"?>
+<tasks>
+  <metadata>
+    <project>${options.projectCodename}</project>
+    <created_at>${new Date().toISOString()}</created_at>
+  </metadata>
+  <config>
+    <worker_count>${options.workerCount}</worker_count>
+    <statuses>pending,processing,task_completed,audit_in_progress,audit_passed,audit_failed</statuses>
+    <completed_statuses>audit_passed</completed_statuses>
+    <failed_statuses>audit_failed</failed_statuses>
+    <retry_on_failed>true</retry_on_failed>
+    <output_pattern>output/{id}_{title}.md</output_pattern>
+  </config>
+  <task_list>
+    <task id="1">
+      <type>${options.taskType}</type>
+      <title>Jak koty podbijają internet</title>
+      <description><![CDATA[Napisz zabawny artykuł po polsku o fenomenie kotów w internecie. Opisz słynne koty-gwiazdy (Grumpy Cat, Keyboard Cat, Nyan Cat), wyjaśnij dlaczego ludzie kochają kotocontent, i dodaj statystyki o miliardach wyświetleń.]]></description>
+      <status>pending</status>
+      <params>
+        <language>polski</language>
+        <word_count>700</word_count>
+        <tone>humorystyczny</tone>
+      </params>
+    </task>
+    <task id="2">
+      <type>${options.taskType}</type>
+      <title>Przewodnik po najdziwniejszych sportach świata</title>
+      <description><![CDATA[Napisz artykuł po polsku o 5 najdziwniejszych dyscyplinach sportowych na świecie.]]></description>
+      <status>pending</status>
+      <params>
+        <language>polski</language>
+        <word_count>800</word_count>
+        <tone>informacyjny</tone>
+      </params>
+    </task>
+    <task id="3">
+      <type>${options.taskType}</type>
+      <title>Dlaczego programiści piją tyle kawy</title>
+      <description><![CDATA[Napisz artykuł po polsku wyjaśniający kulturę picia kawy wśród programistów.]]></description>
+      <status>pending</status>
+      <params>
+        <language>polski</language>
+        <word_count>600</word_count>
+        <tone>żartobliwy</tone>
+      </params>
+    </task>
+  </task_list>
+</tasks>
+`;
 
-  createProjectTasks(tasksFilePath, options.projectCodename, {
-    workerCount: options.workerCount,
-  }, sampleTasks);
+  fs.writeFileSync(tasksFilePath, tasksXml, 'utf8');
 
-  // Create default adapter template
-  const adapterTemplate = {
-    adapterId: options.taskType,
-    version: '1.0',
-    displayName: options.taskType.split('-').map(s => 
-      s.charAt(0).toUpperCase() + s.slice(1)
-    ).join(' '),
-    prompts: {
-      taskStart: `You are working on a ${options.taskType} task.\n\nTask: {title}\nDescription: {description}\n\nPlease complete this task.`,
-      taskContinue: 'Please continue with the task.',
-      auditPrompt: 'Please review the output and confirm it meets requirements.',
-    },
-    completionCriteria: {
-      minOutputLength: 100,
-    },
-    outputProcessing: {
-      saveAs: 'output/{id}_{title_slug}.md',
-    },
-    statusFlow: ['pending', 'processing', 'task_completed', 'audit_passed'],
-    retryableStatuses: ['pending', 'audit_failed'],
-    maxRetries: 3,
-  };
+  // Create default adapter template (XML format)
+  const adapterXml = `<?xml version="1.0" encoding="UTF-8"?>
+<adapter id="${options.taskType}" version="1.0">
+  <display_name>${options.taskType.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')}</display_name>
+  <prompts>
+    <task_start><![CDATA[You are working on a ${options.taskType} task.
 
-  writeJson(path.join(adaptersDir, `${options.taskType}.json`), adapterTemplate);
+Task: {title}
+Description: {description}
+
+Please complete this task.]]></task_start>
+    <task_continue>Please continue with the task.</task_continue>
+    <audit_prompt>Please review the output and confirm it meets requirements.</audit_prompt>
+  </prompts>
+  <completion_criteria>
+    <min_output_length>100</min_output_length>
+  </completion_criteria>
+  <output_processing>
+    <save_as>output/{id}_{title_slug}.md</save_as>
+  </output_processing>
+  <status_flow>pending,processing,task_completed,audit_passed</status_flow>
+  <retryable_statuses>pending,audit_failed</retryable_statuses>
+  <max_retries>3</max_retries>
+</adapter>
+`;
+
+  fs.writeFileSync(path.join(adaptersDir, `${options.taskType}.adapter.xml`), adapterXml, 'utf8');
 
   // Create .gitignore for adg-parallels
   const gitignore = `# ADG-Parallels generated files
 workers/
 *.lock
-heartbeat.json
+heartbeat.xml
 `;
   fs.writeFileSync(path.join(adgRoot, '.gitignore'), gitignore, 'utf8');
 
@@ -430,10 +448,18 @@ export async function startWorkers(): Promise<void> {
   }
 
   // Load hierarchy config for limits
-  const hierarchyConfigPath = path.join(managementDir, 'hierarchy-config.json');
-  const hierarchyConfig = pathExists(hierarchyConfigPath) 
-    ? JSON.parse(fs.readFileSync(hierarchyConfigPath, 'utf8'))
-    : null;
+  const hierarchyConfigPath = path.join(managementDir, 'hierarchy-config.xml');
+  let hierarchyConfig: any = null;
+  if (pathExists(hierarchyConfigPath)) {
+    try {
+      const xmlContent = fs.readFileSync(hierarchyConfigPath, 'utf8');
+      const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
+      const parsed = parser.parse(xmlContent);
+      hierarchyConfig = parsed.hierarchy_config || parsed;
+    } catch (e) {
+      // Ignore parse errors, use defaults
+    }
+  }
   
   // Get max allowed workers from hierarchy config
   const maxFromEmergencyBrake = hierarchyConfig?.emergencyBrake?.maxTotalInstances ?? 10;
@@ -659,14 +685,14 @@ export async function claimNextTask(): Promise<void> {
     return;
   }
 
-  // Load worker config
-  const workerConfigPath = path.join(workspaceRoot, 'worker.json');
+  // Load worker config from XML
+  const workerConfigPath = path.join(workspaceRoot, 'worker.xml');
   if (!pathExists(workerConfigPath)) {
-    vscode.window.showErrorMessage('Worker config not found.');
+    vscode.window.showErrorMessage('Worker config not found (worker.xml).');
     return;
   }
 
-  const workerConfig = JSON.parse(fs.readFileSync(workerConfigPath, 'utf8'));
+  const workerConfig = parseWorkerXml(fs.readFileSync(workerConfigPath, 'utf8'));
   const tasksFile = workerConfig.paths?.tasksFile;
 
   if (!tasksFile || !pathExists(tasksFile)) {
@@ -709,14 +735,14 @@ export async function completeCurrentTask(): Promise<void> {
 
   const workspaceRoot = workspaceFolder.uri.fsPath;
 
-  // Load worker config
-  const workerConfigPath = path.join(workspaceRoot, 'worker.json');
+  // Load worker config from XML
+  const workerConfigPath = path.join(workspaceRoot, 'worker.xml');
   if (!pathExists(workerConfigPath)) {
-    vscode.window.showErrorMessage('Worker config not found.');
+    vscode.window.showErrorMessage('Worker config not found (worker.xml).');
     return;
   }
 
-  const workerConfig = JSON.parse(fs.readFileSync(workerConfigPath, 'utf8'));
+  const workerConfig = parseWorkerXml(fs.readFileSync(workerConfigPath, 'utf8'));
   const tasksFile = workerConfig.paths?.tasksFile;
 
   if (!tasksFile || !pathExists(tasksFile)) {
@@ -828,12 +854,15 @@ export async function executeTask(autoMode?: 'all' | 'next'): Promise<void> {
       const autoCloseDelay = config.get('workerAutoCloseDelay', 3000) as number;
       
       // Create finished flag so manager knows we're done (not crashed)
-      const finishedFlagPath = path.join(workspaceRoot, 'finished.flag');
-      fs.writeFileSync(finishedFlagPath, JSON.stringify({
-        workerId: workerConfig?.workerId || 'unknown',
-        finishedAt: new Date().toISOString(),
-        reason: 'no_pending_tasks'
-      }, null, 2));
+      const finishedFlagPath = path.join(workspaceRoot, 'finished.flag.xml');
+      const finishedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<finished>
+  <worker_id>${workerConfig?.workerId || 'unknown'}</worker_id>
+  <finished_at>${new Date().toISOString()}</finished_at>
+  <reason>no_pending_tasks</reason>
+</finished>
+`;
+      fs.writeFileSync(finishedFlagPath, finishedXml, 'utf8');
       logger.info(`🏁 Created finished flag: ${finishedFlagPath}`);
 
       if (autoMode && autoClose) {
@@ -995,12 +1024,15 @@ export async function executeTask(autoMode?: 'all' | 'next'): Promise<void> {
       // After completing all tasks, handle worker window
       if (roleInfo.role === 'worker') {
         // Create finished flag so manager knows we're done (not crashed)
-        const finishedFlagPath = path.join(workspaceRoot, 'finished.flag');
-        fs.writeFileSync(finishedFlagPath, JSON.stringify({
-          workerId: workerConfig!.workerId,
-          finishedAt: new Date().toISOString(),
-          reason: 'all_tasks_completed'
-        }, null, 2));
+        const finishedFlagPath = path.join(workspaceRoot, 'finished.flag.xml');
+        const finishedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<finished>
+  <worker_id>${workerConfig!.workerId}</worker_id>
+  <finished_at>${new Date().toISOString()}</finished_at>
+  <reason>all_tasks_completed</reason>
+</finished>
+`;
+        fs.writeFileSync(finishedFlagPath, finishedXml, 'utf8');
         logger.info(`🏁 Created finished flag: ${finishedFlagPath}`);
 
         const config = vscode.workspace.getConfiguration('adg-parallels');

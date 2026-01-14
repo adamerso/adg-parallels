@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { XMLParser } from 'fast-xml-parser';
 import { Role, RoleInfo, RolePaths, WorkerConfig, HierarchyConfig } from '../types';
-import { pathExists, isDirectory, readJson } from '../utils/file-operations';
+import { pathExists, isDirectory } from '../utils/file-operations';
 import { logger } from '../utils/logger';
 
 // Constants
@@ -21,7 +21,7 @@ const ADG_DIR = '.adg-parallels';
 const MANAGEMENT_DIR = 'management';
 const WORKER_DIR = 'worker';
 const WORKER_CONFIG_FILE = 'worker.xml';
-const HIERARCHY_CONFIG_FILE = 'hierarchy-config.json';
+const HIERARCHY_CONFIG_FILE = 'hierarchy-config.xml';
 
 /**
  * Get the workspace root folder
@@ -153,11 +153,44 @@ export function getWorkerConfig(workerDir: string): WorkerConfig | null {
 }
 
 /**
- * Get hierarchy configuration
+ * Get hierarchy configuration from XML
  */
 export function getHierarchyConfig(managementDir: string): HierarchyConfig | null {
   const configPath = path.join(managementDir, HIERARCHY_CONFIG_FILE);
-  return readJson<HierarchyConfig>(configPath);
+  
+  if (!pathExists(configPath)) {
+    return null;
+  }
+  
+  try {
+    const xmlContent = fs.readFileSync(configPath, 'utf8');
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '@_',
+    });
+    const parsed = parser.parse(xmlContent);
+    const config = parsed.hierarchy_config || parsed;
+    
+    return {
+      maxDepth: parseInt(config.max_depth, 10) || 3,
+      currentDepth: parseInt(config.current_depth, 10) || 0,
+      levelConfig: Array.isArray(config.levels?.level) 
+        ? config.levels.level.map((l: any) => ({
+            level: parseInt(l['@_level'], 10) || 0,
+            role: l.role || 'worker',
+            canDelegate: l.can_delegate === 'true',
+            maxSubordinates: parseInt(l.max_subordinates, 10) || 0,
+            subordinateRole: l.subordinate_role || null,
+          }))
+        : [],
+      emergencyBrake: {
+        maxTotalInstances: parseInt(config.emergency_brake?.max_total_instances, 10) || 100,
+      },
+    } as HierarchyConfig;
+  } catch (e) {
+    logger.error('Failed to parse hierarchy-config.xml', { configPath, error: e });
+    return null;
+  }
 }
 
 /**

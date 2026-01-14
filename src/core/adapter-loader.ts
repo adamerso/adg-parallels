@@ -7,7 +7,7 @@
 
 import * as path from 'path';
 import { TaskAdapter } from '../types';
-import { readJson, pathExists, findFiles } from '../utils/file-operations';
+import { pathExists, findFiles } from '../utils/file-operations';
 import { logger } from '../utils/logger';
 
 // =============================================================================
@@ -30,45 +30,118 @@ export function loadAdapter(adaptersDir: string, adapterId: string): TaskAdapter
     return adapterCache.get(cacheKey)!;
   }
 
-  // Try to load from file
-  const adapterPath = path.join(adaptersDir, `${adapterId}.adapter.json`);
+  // Try to load from XML file first (v0.3.0+ format)
+  const xmlAdapterPath = path.join(adaptersDir, `${adapterId}.adapter.xml`);
   
-  if (!pathExists(adapterPath)) {
-    // Try without .adapter suffix
-    const altPath = path.join(adaptersDir, `${adapterId}.json`);
-    if (!pathExists(altPath)) {
-      logger.error(`Adapter not found: ${adapterId}`, { searchedPaths: [adapterPath, altPath] });
-      return null;
-    }
-    return loadAdapterFromPath(altPath, cacheKey);
+  if (pathExists(xmlAdapterPath)) {
+    return loadAdapterFromXmlPath(xmlAdapterPath, cacheKey);
   }
-
-  return loadAdapterFromPath(adapterPath, cacheKey);
+  
+  logger.error(`Adapter not found: ${adapterId}`, { 
+    searchedPath: xmlAdapterPath 
+  });
+  return null;
 }
 
 /**
- * Load adapter from a specific file path
+ * Save adapter as XML file
  */
-function loadAdapterFromPath(filePath: string, cacheKey: string): TaskAdapter | null {
-  const adapter = readJson<TaskAdapter>(filePath);
+function saveAdapterAsXml(filePath: string, adapter: TaskAdapter): void {
+  const fs = require('fs');
   
-  if (!adapter) {
-    logger.error(`Failed to parse adapter: ${filePath}`);
+  const escapeXml = (str: string): string => {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  };
+  
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<adapter id="${escapeXml(adapter.adapterId)}" version="${escapeXml(adapter.version)}">
+  <display_name>${escapeXml(adapter.displayName)}</display_name>
+  <prompts>
+    <task_start><![CDATA[${adapter.prompts.taskStart}]]></task_start>
+    <task_continue><![CDATA[${adapter.prompts.taskContinue || 'Please continue.'}]]></task_continue>
+    ${adapter.prompts.auditPrompt ? `<audit_prompt><![CDATA[${adapter.prompts.auditPrompt}]]></audit_prompt>` : ''}
+  </prompts>
+  <completion_criteria>
+    <min_output_length>${adapter.completionCriteria?.minOutputLength || 100}</min_output_length>
+    ${adapter.completionCriteria?.validationRegex ? `<validation_regex>${escapeXml(adapter.completionCriteria.validationRegex)}</validation_regex>` : ''}
+    ${adapter.completionCriteria?.requiredOutputFiles ? `<required_output_files>${adapter.completionCriteria.requiredOutputFiles.join(',')}</required_output_files>` : ''}
+  </completion_criteria>
+  <output_processing>
+    <save_as>${escapeXml(adapter.outputProcessing?.saveAs || 'output/{id}.md')}</save_as>
+  </output_processing>
+  <status_flow>${adapter.statusFlow?.join(',') || 'pending,processing,completed'}</status_flow>
+  <retryable_statuses>${adapter.retryableStatuses?.join(',') || 'pending'}</retryable_statuses>
+  <max_retries>${adapter.maxRetries || 3}</max_retries>
+</adapter>
+`;
+  
+  fs.writeFileSync(filePath, xml, 'utf8');
+  logger.info(`Saved adapter as XML: ${adapter.adapterId}`);
+}
+
+/**
+ * Load adapter from an XML file path (v0.3.0+ format)
+ */
+function loadAdapterFromXmlPath(filePath: string, cacheKey: string): TaskAdapter | null {
+  try {
+    const xmlContent = require('fs').readFileSync(filePath, 'utf8');
+    const { XMLParser } = require('fast-xml-parser');
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '@_',
+    });
+    const parsed = parser.parse(xmlContent);
+    const adapterXml = parsed.adapter;
+    
+    if (!adapterXml) {
+      logger.error(`Invalid adapter XML structure: ${filePath}`);
+      return null;
+    }
+    
+    // Convert XML structure to TaskAdapter format
+    const adapter: TaskAdapter = {
+      adapterId: adapterXml['@_id'] || path.basename(filePath, '.adapter.xml'),
+      version: adapterXml['@_version'] || '1.0',
+      displayName: adapterXml.display_name || adapterXml['@_id'] || 'Unknown',
+      prompts: {
+        taskStart: adapterXml.prompts?.task_start || '',
+        taskContinue: adapterXml.prompts?.task_continue || 'Please continue.',
+        auditPrompt: adapterXml.prompts?.audit_prompt || '',
+      },
+      completionCriteria: {
+        minOutputLength: parseInt(adapterXml.completion_criteria?.min_output_length, 10) || 100,
+        validationRegex: adapterXml.completion_criteria?.validation_regex,
+        requiredOutputFiles: adapterXml.completion_criteria?.required_output_files?.split(','),
+      },
+      outputProcessing: {
+        saveAs: adapterXml.output_processing?.save_as || 'output/{id}.md',
+      },
+      statusFlow: (adapterXml.status_flow || 'pending,processing,completed').split(','),
+      retryableStatuses: (adapterXml.retryable_statuses || 'pending').split(',') as any,
+      maxRetries: parseInt(adapterXml.max_retries, 10) || 3,
+    };
+    
+    // Validate adapter
+    const validationErrors = validateAdapter(adapter);
+    if (validationErrors.length > 0) {
+      logger.error(`Invalid adapter: ${filePath}`, { errors: validationErrors });
+      return null;
+    }
+    
+    // Cache and return
+    adapterCache.set(cacheKey, adapter);
+    logger.info(`Loaded adapter from XML: ${adapter.adapterId}`, { version: adapter.version });
+    
+    return adapter;
+  } catch (e) {
+    logger.error(`Failed to parse adapter XML: ${filePath}`, e);
     return null;
   }
-
-  // Validate adapter
-  const validationErrors = validateAdapter(adapter);
-  if (validationErrors.length > 0) {
-    logger.error(`Invalid adapter: ${filePath}`, { errors: validationErrors });
-    return null;
-  }
-
-  // Cache and return
-  adapterCache.set(cacheKey, adapter);
-  logger.info(`Loaded adapter: ${adapter.adapterId}`, { version: adapter.version });
-  
-  return adapter;
 }
 
 /**
@@ -80,12 +153,13 @@ export function loadAllAdapters(adaptersDir: string): TaskAdapter[] {
     return [];
   }
 
-  const adapterFiles = findFiles(adaptersDir, /\.(adapter\.)?json$/);
+  // Load XML adapters only
+  const xmlFiles = findFiles(adaptersDir, /\.adapter\.xml$/);
   const adapters: TaskAdapter[] = [];
 
-  for (const filePath of adapterFiles) {
+  for (const filePath of xmlFiles) {
     const cacheKey = `${adaptersDir}:${path.basename(filePath)}`;
-    const adapter = loadAdapterFromPath(filePath, cacheKey);
+    const adapter = loadAdapterFromXmlPath(filePath, cacheKey);
     if (adapter) {
       adapters.push(adapter);
     }
@@ -389,7 +463,7 @@ When done: "TASK COMPLETED"`,
       validationRegex: '\\[\\s*\\{',  // Must contain JSON array
     },
     outputProcessing: {
-      saveAs: 'output/splits/{{task.id}}_subtasks.json',
+      saveAs: 'output/splits/{{task.id}}_subtasks.xml',
       postProcess: ['parse-subtasks', 'add-to-queue'],
     },
     statusFlow: ['pending', 'processing', 'task_completed'],
@@ -673,7 +747,7 @@ Provide your final verdict: "AUDIT PASSED" or "AUDIT FAILED: [reason]"`,
  * Create built-in adapters in the adapters directory
  */
 export function createBuiltInAdapters(adaptersDir: string): void {
-  const { writeJson, ensureDir } = require('../utils/file-operations');
+  const { ensureDir } = require('../utils/file-operations');
   
   ensureDir(adaptersDir);
 
@@ -687,9 +761,11 @@ export function createBuiltInAdapters(adaptersDir: string): void {
   ];
 
   for (const { id, adapter } of adapters) {
-    const filePath = path.join(adaptersDir, `${id}.adapter.json`);
-    if (!pathExists(filePath)) {
-      writeJson(filePath, adapter);
+    const xmlPath = path.join(adaptersDir, `${id}.adapter.xml`);
+    
+    if (!pathExists(xmlPath)) {
+      // Write as XML
+      saveAdapterAsXml(xmlPath, adapter);
       logger.info(`Created built-in adapter: ${id}`);
     }
   }

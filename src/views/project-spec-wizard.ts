@@ -51,6 +51,7 @@ function writeWorkerXml(filePath: string, config: any): void {
     <worker_root>${config.paths.workerRoot}</worker_root>
     <output_dir>${config.paths.outputDir}</output_dir>
     <prompt_file>${config.paths.promptFile}</prompt_file>
+    <tasks_file>${config.paths.tasksFile}</tasks_file>
   </paths>
   <created_at>${config.createdAt}</created_at>
   <instructions_version>${config.instructionsVersion}</instructions_version>
@@ -149,11 +150,11 @@ const EXAMPLES = {
   outputDescription: [
     'Pliki .md, nazwa: {numer}_{temat}.md',
     'Ta sama struktura folderów co input, pliki z sufiksem _translated',
-    'Jeden plik JSON ze wszystkimi wynikami',
+    'Jeden plik XML ze wszystkimi wynikami',
     'Pliki .py obok oryginałów z prefixem test_',
   ],
   reporting: [
-    'Raportuj postęp do pliku progress.json co 10 zadań. Format: {"completed": N, "total": M}',
+    'Raportuj postęp do pliku progress.xml co 10 zadań',
     'Aktualizuj plik status.md po każdym ukończonym batchu',
     'Zapisuj logi do reports/daily_{date}.log',
   ],
@@ -277,6 +278,9 @@ export class ProjectSpecWizardPanel {
       case 'addInputFile':
         await this._addInputFile();
         break;
+      case 'addInputFolder':
+        await this._addInputFolder();
+        break;
       case 'removeInputFile':
         this._removeInputFile(message.index);
         break;
@@ -379,17 +383,36 @@ export class ProjectSpecWizardPanel {
     const newLayers: LayerConfig[] = [];
 
     for (let i = 0; i < count; i++) {
+      // Determine correct default type based on position
+      const isLast = i === count - 1;
+      const correctDefaultType: LayerType = isLast ? 'worker' : (i === 0 ? 'manager' : 'teamleader');
+      
       if (oldLayers[i]) {
-        // Keep existing layer config, update number
-        newLayers.push({ ...oldLayers[i], number: i + 1 });
+        // Keep existing layer config, but update number and potentially reset type
+        // if this layer's position has changed (e.g., was last, now middle)
+        const existingLayer = { ...oldLayers[i], number: i + 1 };
+        
+        // Auto-fix type if layer was previously last (worker) but now isn't
+        // or if it was first but now isn't, etc.
+        const wasLastLayer = i === oldLayers.length - 1;
+        const isNowLastLayer = isLast;
+        
+        // If position in hierarchy changed, suggest correct type
+        // But only auto-fix if the type no longer makes sense
+        if (wasLastLayer && !isNowLastLayer && existingLayer.type === 'worker') {
+          // Was last (worker), but now has layers below - change to teamleader
+          existingLayer.type = 'teamleader';
+        } else if (!wasLastLayer && isNowLastLayer && existingLayer.type !== 'worker') {
+          // Now is last layer - should be worker (can't delegate)
+          existingLayer.type = 'worker';
+        }
+        
+        newLayers.push(existingLayer);
       } else {
         // Create new layer with defaults
-        const isLast = i === count - 1;
-        const defaultType: LayerType = isLast ? 'worker' : (i === 0 ? 'manager' : 'teamleader');
-        
         newLayers.push({
           number: i + 1,
-          type: defaultType,
+          type: correctDefaultType,
           workforceSize: 1,
           reporting: '',
           taskDescription: '',
@@ -569,14 +592,44 @@ export class ProjectSpecWizardPanel {
   private async _addInputFile(): Promise<void> {
     const result = await vscode.window.showOpenDialog({
       canSelectFiles: true,
-      canSelectFolders: true,
+      canSelectFolders: false,
       canSelectMany: true,
-      title: 'Select input files or folders',
+      title: 'Select input files',
     });
 
     if (result && result.length > 0) {
       for (const uri of result) {
         const relativePath = vscode.workspace.asRelativePath(uri, false);
+        
+        // Don't add duplicates
+        if (!this._state.inputFiles.find(f => f.path === relativePath)) {
+          this._state.inputFiles.push({
+            path: relativePath,
+            copyToLayers: '', // Will be filled by user
+          });
+        }
+      }
+      
+      this._syncResourcesToLayers();
+      this._update();
+    }
+  }
+
+  private async _addInputFolder(): Promise<void> {
+    const result = await vscode.window.showOpenDialog({
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: true,
+      title: 'Select input folders',
+    });
+
+    if (result && result.length > 0) {
+      for (const uri of result) {
+        let relativePath = vscode.workspace.asRelativePath(uri, false);
+        // Ensure folder paths end with /
+        if (!relativePath.endsWith('/') && !relativePath.endsWith('\\')) {
+          relativePath += '/';
+        }
         
         // Don't add duplicates
         if (!this._state.inputFiles.find(f => f.path === relativePath)) {
@@ -704,18 +757,13 @@ export class ProjectSpecWizardPanel {
       const doc = await vscode.workspace.openTextDocument(projectXmlPath);
       await vscode.window.showTextDocument(doc);
 
-      // Then show success message (non-blocking after wizard is closed)
-      const action = await vscode.window.showInformationMessage(
-        `✅ Project "${this._state.projectName}" created!\n` +
-        `Layers: ${this._state.workforceLayers}, Workers to spawn: ${totalWorkers}\n` +
-        `Use "Start Processing" in sidebar to begin.`,
-        'Start Processing Now',
-        'Later'
+      // Show notification and AUTO-START workers without blocking
+      vscode.window.showInformationMessage(
+        `✅ Project "${this._state.projectName}" created! Spawning ${totalWorkers} workers...`
       );
 
-      if (action === 'Start Processing Now') {
-        await this._spawnProjectWorkers(projectRoot, totalWorkers);
-      }
+      // Auto-spawn workers immediately (no blocking dialog)
+      await this._spawnProjectWorkers(projectRoot, totalWorkers);
     } catch (error) {
       vscode.window.showErrorMessage(`Failed to create project: ${error}`);
       logger.error('Project creation failed', error);
@@ -819,7 +867,7 @@ ${layer.reporting ? `## Reporting Instructions\n${layer.reporting}` : ''}
     const workersDir = path.join(projectRoot, 'workers');
     ensureDir(workersDir);
 
-    vscode.window.withProgress({
+    await vscode.window.withProgress({
       location: vscode.ProgressLocation.Notification,
       title: `Spawning ${totalWorkers} workers...`,
       cancellable: true
@@ -846,20 +894,15 @@ ${layer.reporting ? `## Reporting Instructions\n${layer.reporting}` : ''}
           });
 
           // Small delay between spawns
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
 
-      // Ask if user wants to open worker windows
-      const openWindows = await vscode.window.showInformationMessage(
-        `${spawned} workers provisioned. Open VS Code windows for them?`,
-        'Open All Windows',
-        'Skip'
-      );
-
-      if (openWindows === 'Open All Windows') {
-        await this._openWorkerWindows(workersDir, spawned);
-      }
+      // Auto-open worker windows (no dialog - just do it!)
+      progress.report({ message: 'Opening VS Code windows...' });
+      await this._openWorkerWindows(workersDir, spawned);
+      
+      vscode.window.showInformationMessage(`🚀 ${spawned} worker windows launched!`);
 
       return spawned;
     });
@@ -875,6 +918,7 @@ ${layer.reporting ? `## Reporting Instructions\n${layer.reporting}` : ''}
 
     const projectRoot = path.dirname(path.dirname(workerDir));
     const projectSpecPath = path.join(projectRoot, 'project-spec.xml');
+    const tasksFilePath = path.join(projectRoot, 'tasks.xml');
 
     // Create worker config
     const workerConfig = {
@@ -888,6 +932,7 @@ ${layer.reporting ? `## Reporting Instructions\n${layer.reporting}` : ''}
         workerRoot: workerDir,
         outputDir: path.join(projectRoot, this._state.outputDirectory),
         promptFile: path.join(projectRoot, 'prompts', `layer_${layer.number}_prompt.md`),
+        tasksFile: tasksFilePath,
       },
       createdAt: new Date().toISOString(),
       instructionsVersion: '1.0',
@@ -948,10 +993,21 @@ Good luck! 🚀
     
     for (const entry of entries) {
       if (entry.isDirectory() && entry.name.startsWith('worker-')) {
-        const uri = vscode.Uri.file(path.join(workersDir, entry.name));
+        const workerPath = path.join(workersDir, entry.name);
+        const workerConfigPath = path.join(workerPath, 'worker.xml');
+        
+        // Verify worker is properly provisioned
+        if (!pathExists(workerConfigPath)) {
+          logger.warn(`Skipping worker ${entry.name} - no worker.xml found`);
+          continue;
+        }
+        
+        const uri = vscode.Uri.file(workerPath);
+        logger.info(`Opening worker window: ${entry.name}`);
         await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
-        // Delay between window opens
-        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Larger delay between window opens to allow proper initialization
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
   }
@@ -984,9 +1040,59 @@ workdir/
 logs/
 workers/
 *.lock
-*.lock
 `;
     fs.writeFileSync(path.join(projectRoot, '.gitignore'), gitignore, 'utf8');
+
+    // Create tasks.xml (required for workers)
+    const tasksXml = `<?xml version="1.0" encoding="UTF-8"?>
+<tasks>
+  <metadata>
+    <project>${this._escapeXml(this._state.projectName)}</project>
+    <created_at>${new Date().toISOString()}</created_at>
+  </metadata>
+  <config>
+    <worker_count>${this._calculateTotalWorkers()}</worker_count>
+    <statuses>pending,processing,completed,failed</statuses>
+    <completed_statuses>completed</completed_statuses>
+    <failed_statuses>failed</failed_statuses>
+  </config>
+  <task_list>
+    <!-- Tasks will be added here -->
+  </task_list>
+</tasks>
+`;
+    fs.writeFileSync(path.join(projectRoot, 'tasks.xml'), tasksXml, 'utf8');
+    logger.info('Created tasks.xml');
+
+    // Create hierarchy-config.xml
+    const hierarchyXml = `<?xml version="1.0" encoding="UTF-8"?>
+<hierarchy_config>
+  <max_depth>${this._state.workforceLayers}</max_depth>
+  <current_depth>0</current_depth>
+  <levels>
+${this._state.layers.map(layer => `    <level level="${layer.number}">
+      <role>${layer.type}</role>
+      <can_delegate>${layer.type !== 'worker'}</can_delegate>
+      <max_subordinates>${layer.workforceSize}</max_subordinates>
+      <subordinate_role>${layer.type === 'worker' ? 'none' : 'worker'}</subordinate_role>
+    </level>`).join('\n')}
+  </levels>
+  <emergency_brake>
+    <max_total_instances>100</max_total_instances>
+    <max_tasks_per_worker>50</max_tasks_per_worker>
+    <timeout_minutes>120</timeout_minutes>
+  </emergency_brake>
+  <health_monitoring>
+    <enabled>true</enabled>
+    <heartbeat_interval_seconds>60</heartbeat_interval_seconds>
+    <unresponsive_threshold_seconds>120</unresponsive_threshold_seconds>
+    <max_consecutive_failures>3</max_consecutive_failures>
+    <auto_restart>true</auto_restart>
+  </health_monitoring>
+</hierarchy_config>
+`;
+    fs.writeFileSync(path.join(projectRoot, 'hierarchy-config.xml'), hierarchyXml, 'utf8');
+    logger.info('Created hierarchy-config.xml');
   }
 
   private _generateXml(): string {
@@ -1289,9 +1395,14 @@ ${layer.resources.filter(r => r.use).map(r =>
             ${s.inputFiles.length === 0 ? '<div class="empty-state">No files added yet. Click "Add File/Folder" below.</div>' : ''}
             ${s.inputFiles.map((f, i) => this._renderInputFileItem(f, i)).join('')}
           </div>
-          <button class="btn btn-secondary btn-small" data-cmd="addInputFile">
-            ➕ Add File/Folder
-          </button>
+          <div class="button-group">
+            <button class="btn btn-secondary btn-small" data-cmd="addInputFile">
+              📄 Add Files
+            </button>
+            <button class="btn btn-secondary btn-small" data-cmd="addInputFolder">
+              📂 Add Folder
+            </button>
+          </div>
         </div>
         
         <div class="form-group">

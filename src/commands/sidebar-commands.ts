@@ -315,14 +315,17 @@ function getHelpHtml(): string {
   
   <h2>Project Structure</h2>
   <pre>
-.adg-parallels/
-├── management/
-│   └── project_*_adg-tasks.json
-├── output/
-└── workers/
-    ├── worker-001/
-    ├── worker-002/
-    └── ...
+root_of_project_{name}/
+├── project-spec.xml
+├── tasks.xml
+├── hierarchy-config.xml
+├── prompts/
+│   └── layer_*_prompt.md
+├── workers/
+│   ├── worker-L1-1/
+│   ├── worker-L1-2/
+│   └── ...
+└── output/
   </pre>
   
   <h2>Need More Help?</h2>
