@@ -1,7 +1,7 @@
 # 🗺️ ADG-Parallels - Roadmap
 
-**Current Version: v0.4.2**  
-**Last Updated: January 2025**
+**Current Version: v0.4.4**  
+**Last Updated: January 2026**
 
 ---
 
@@ -106,14 +106,14 @@
 - ✅ Auto-start processing after creation if enabled
 - ✅ Folder structure preview
 
-### 2.0.2 Adapter Wizards ✅
-- ✅ **Step 0: Adapter Selection** - wybór typu adaptera przed startem wizarda
-- ✅ **ADAPTER_REGISTRY** - centralny rejestr adapterów z metadanymi
-- ✅ **Article Generator Wizard** (6 kroków)
-- ✅ **Code Generation Wizard** (6 kroków)
-- ✅ **Research Report Wizard** (6 kroków)
-- ✅ **Translation Wizard** (6 kroków)
-- ✅ **Adapter Generator Wizard** (6 kroków)
+### 2.0.2 Project Spec Wizard ✅
+- ✅ **Unified Project Wizard** - 4 kroki tworzenia projektu
+- ✅ **Step 1: Project Name** - nazwa projektu (a-zA-Z0-9_-)
+- ✅ **Step 2: Workforce Layers** - ilość warstw hierarchii (1-99)
+- ✅ **Step 3: Input Resources** - pliki/foldery wejściowe + opis + output
+- ✅ **Step 4: Layer Configuration** - konfiguracja każdej warstwy
+- ✅ **Auto-spawn workers** - automatyczne tworzenie i uruchamianie workerów
+- ✅ **Layer prompts generation** - generowanie promptów per warstwa
 - ✅ **shared.ts** - współdzielone utility (getNonce, getBaseStyles)
 
 ### 2.1 Dashboard (Webview) ⬜
@@ -163,7 +163,8 @@
 - ✅ `code-generation.adapter.xml` - 7 stages
 - ✅ `research-report.adapter.xml` - 7 stages
 - ✅ `adapter-generator.adapter.xml` - 7 stages (meta-adapter)
-- ✅ **saveAdapterAsXml() for built-in adapter creation (v0.4.2)**
+
+**Note**: Adaptery są opcjonalne - nowy ProjectSpec Wizard pozwala na elastyczne definiowanie zadań bez sztywnego adaptera.
 
 ### 3.5 Pipeline Engine 🟨
 - ✅ Stage execution logic
@@ -329,7 +330,7 @@
 
 | Version | Date | Major Changes |
 |---------|------|---------------|
-| v0.4.2 | Jan 2025 | Complete JSON→XML migration, spawn timing fixes |
+| v0.4.2 | Jan 2026 | New ProjectSpec Wizard, layer-based workforce, auto-spawn |
 | v0.4.1 | Jan 2025 | Bug fixes, XML heartbeat |
 | v0.4.0 | Jan 2025 | XML format migration |
 | v0.3.x | Dec 2024 | Pipeline adapters, wizards |
@@ -354,7 +355,7 @@
 
 ---
 
-*Last updated: January 2025*
-*Version: 0.4.2*
+*Last updated: January 2026*
+*Version: 0.4.3*
 
 **Status:** Alpha - Functional with Active Development

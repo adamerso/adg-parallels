@@ -1,6 +1,6 @@
 # 🚀 ADG-Parallels - Project Vision
 
-**Current Version: v0.4.2**  
+**Current Version: v0.4.4**  
 **Status: Alpha - Functional with Active Development**
 
 ---
@@ -28,11 +28,12 @@ Imagine having your own AI corporation:
 All running in parallel. All coordinated automatically. All using file-based XML communication.
 
 **Core Features (v0.4.x):**
-- 🔌 **Adapter System** - XML-based workflow definitions
-- 💓 **Self-healing** - Heartbeat monitoring, auto-restart of frozen workers
-- 🏢 **Hierarchy** - CEO → Manager → TeamLeader → Worker
+- 🔌 **Adapter System** - XML-based workflow definitions (optional)
+- 💫 **Self-healing** - Heartbeat monitoring, auto-restart of frozen workers
+- 🏢 **Hierarchy** - CEO → Manager → TeamLeader → Worker (up to 99 layers)
 - 📊 **Sidebar UI** - Real-time monitoring and control
-- 🧙 **Project Wizard** - Guided project setup
+- 🧙 **ProjectSpec Wizard** - 4-step guided project setup with layer configuration
+- 🧱 **Layer-based Workforce** - Define workforce per layer with custom prompts
 
 ---
 
@@ -74,21 +75,21 @@ An extension that:
 
 ```
 📁 root_of_project_{name}/
-├── project-spec.xml          ← Project configuration
+├── project-spec.xml          ← Project configuration (layers, resources)
 ├── tasks.xml                 ← Task queue with statuses
 ├── hierarchy-config.xml      ← Hierarchy limits
 ├── finished.flag.xml         ← Created when all done
 │
 ├── 📁 input/                 ← Source materials
-├── 📁 workdir/               ← Working directory
+├── 📁 workdir/               ← Working directory (per layer)
 ├── 📁 output/                ← Generated outputs
 ├── 📁 logs/                  ← Execution logs
 │
 ├── 📁 prompts/
-│   └── layer_*_prompt.md     ← Instructions per layer
+│   └── layer_*_prompt.md     ← Generated prompts per layer
 │
 └── 📁 workers/
-    └── 📁 worker-L1-{N}/     ← Each worker's workspace
+    └── 📁 worker-L{layer}-{N}/ ← Each worker's workspace
         ├── worker.xml        ← Worker configuration
         ├── heartbeat.xml     ← Health status
         └── instructions.md   ← Task instructions
@@ -172,17 +173,21 @@ This ensures **high availability** and fault tolerance.
 
 ### ✅ Phase 2: UI (Complete)
 - Sidebar panel (Activity Bar)
-- Project Wizard (multi-step webview)
+- ProjectSpec Wizard (4-step: Name → Layers → Resources → Configure)
 - Processing ON/OFF control
 - Stop/Resume/Kill buttons
-- Adapter-specific wizards
+- Layer-based workforce configuration
+- Continuation prompts ("poganiacz") per layer
+- Auto-spawn workers after project creation
 
-### ✅ Phase 3: Adapters (Complete)
+### ✅ Phase 3: Adapters (Complete - Optional)
 - XML adapter format
 - Built-in adapters (5 types)
 - Custom adapter support
 - Multi-stage pipelines
 - Per-stage model assignment
+
+**Note**: Adapters are now optional. The new ProjectSpec Wizard allows flexible task definitions without rigid adapters.
 
 ### ✅ Phase 4: Audit Flow (Complete)
 - Audit stages in pipeline
@@ -276,11 +281,11 @@ MIT License
 
 ---
 
-*Last updated: January 2025*  
-*Version: 0.4.2*
+*Last updated: January 2026*  
+*Version: 0.4.3*
 
 **Milestones achieved:**
 - ✅ v0.1.x - Initial MVP
 - ✅ v0.2.x - Sidebar UI, health monitoring
 - ✅ v0.3.x - Pipeline adapters, wizards
-- ✅ v0.4.x - Complete XML migration, stability improvements
+- ✅ v0.4.x - Complete XML migration, ProjectSpec Wizard, layer-based workforce

@@ -101,14 +101,15 @@ You combine Worker and Manager duties:
 
 | File                              | Description                              |
 |-----------------------------------|------------------------------------------|
+| `project-spec.xml`                | Project configuration (layers, resources) |
 | `worker.xml`                      | Your configuration, paths, worker_id     |
-| `worker-start-prompt.md`          | First prompt at startup                  |
-| `worker-continue-prompt.md`       | Continuation prompt after each task      |
-| `worker-all-task-disposed.md`     | MARKER: No tasks, end work               |
+| `heartbeat.xml`                   | Worker health status (auto-update)       |
 | `tasks.xml`                       | Task list with their statuses            |
 | `hierarchy-config.xml`            | Delegation limits (depth, count)         |
-| `heartbeat.xml`                   | Worker health status (auto-update)       |
-| `adapters/*.adapter.xml`          | Adapter definitions for task types       |
+| `instructions.md`                 | Task instructions for worker             |
+| `layer_*_prompt.md`               | Auto-generated prompts per layer         |
+| `finished.flag.xml`               | MARKER: Worker completed all tasks       |
+| `adapters/*.adapter.xml`          | Adapter definitions (optional)           |
 
 ### §4.2 Paths
 
@@ -138,7 +139,7 @@ audit_passed     → Task completed successfully
 
 ---
 
-## Article 6: Adapter System
+## Article 6: Adapter System (Optional)
 
 ### §6.1 What is an Adapter?
 
@@ -146,6 +147,8 @@ An adapter is a definition of how to handle a specific task type. It defines:
 - How to formulate the starting prompt
 - How to interpret output
 - When to consider task complete
+
+**Note**: Adapters are optional in v0.4+. The ProjectSpec Wizard allows flexible task definitions via layer prompts without rigid adapters.
 
 ### §6.2 Using Adapters
 
@@ -206,14 +209,18 @@ Heartbeat is a life signal. The extension automatically updates
 
 ### §8.2 Heartbeat Structure
 
-```json
-{
-  "workerId": "worker_3",
-  "lastActivityTimestamp": "2025-12-07T14:32:15.000Z",
-  "currentTask": { "id": 42, "title": "..." },
-  "status": "working",
-  "consecutiveFailures": 0
-}
+```xml
+<heartbeat>
+  <worker-id>worker-L1-3</worker-id>
+  <timestamp>2026-01-15T14:32:15.000Z</timestamp>
+  <status>working</status>
+  <current-task>task-42</current-task>
+  <stats>
+    <tasks-completed>5</tasks-completed>
+    <stages-processed>12</stages-processed>
+    <uptime-seconds>3600</uptime-seconds>
+  </stats>
+</heartbeat>
 ```
 
 ### §8.3 Consequences of Missing Heartbeat

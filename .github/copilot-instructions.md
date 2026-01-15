@@ -56,14 +56,14 @@ This project follows **Semantic Versioning** (SemVer). Always update the `versio
 
 ### Key Directories
 - `src/` - TypeScript source code
-- `resources/adapters/` - Task adapter templates (XML)
+- `resources/adapters/` - Task adapter templates (XML) - optional
 - `resources/schemas/` - XSD schemas for validation
 - `docs/` - Project documentation
 
 ### Core Components
 - `extension.ts` - Entry point
 - `src/core/` - Core business logic (pipeline, tasks, workers)
-- `src/views/` - Webview UI components
+- `src/views/` - Webview UI components (ProjectSpec Wizard, Sidebar)
 - `src/commands/` - VS Code command handlers
 
 ---

@@ -1,0 +1,27 @@
+{
+  // Force PowerShell as default terminal (not Cygwin bash)
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "terminal.integrated.profiles.windows": {
+    "PowerShell": {
+      "source": "PowerShell",
+      "icon": "terminal-powershell"
+    },
+    "Command Prompt": {
+      "path": ["${env:windir}\\System32\\cmd.exe"],
+      "icon": "terminal-cmd"
+    }
+  },
+  
+  // Force PowerShell for tasks/automation
+  "terminal.integrated.automationProfile.windows": {
+    "path": "powershell.exe",
+    "args": ["-NoProfile"]
+  },
+  
+  // GitHub Copilot terminal settings
+  "github.copilot.chat.terminalChatLocation": "terminal",
+  "chat.agent.defaultModel": "claude-sonnet-4",
+  
+  // NPM settings
+  "npm.packageManager": "npm"
+}

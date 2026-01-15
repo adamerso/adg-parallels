@@ -236,73 +236,101 @@ export class ProjectSpecWizardPanel {
   // ===========================================================================
 
   private async _handleMessage(message: any): Promise<void> {
-    switch (message.command) {
-      // Navigation
-      case 'nextStep':
-        this._nextStep();
-        break;
-      case 'prevStep':
-        this._prevStep();
-        break;
-      case 'goToStep':
-        this._goToStep(message.step);
-        break;
-      case 'nextLayer':
-        this._nextLayer();
-        break;
-      case 'prevLayer':
-        this._prevLayer();
-        break;
-      case 'goToLayer':
-        this._goToLayer(message.index);
-        break;
+    logger.info(`📨 [WIZARD] Message received: ${message.command}`, message);
+    
+    try {
+      switch (message.command) {
+        // Navigation
+        case 'nextStep':
+          logger.info('📨 [WIZARD] → nextStep clicked');
+          this._nextStep();
+          break;
+        case 'prevStep':
+          logger.info('📨 [WIZARD] → prevStep clicked');
+          this._prevStep();
+          break;
+        case 'goToStep':
+          logger.info(`📨 [WIZARD] → goToStep(${message.step}) clicked`);
+          this._goToStep(message.step);
+          break;
+        case 'nextLayer':
+          logger.info('📨 [WIZARD] → nextLayer clicked');
+          this._nextLayer();
+          break;
+        case 'prevLayer':
+          logger.info('📨 [WIZARD] → prevLayer clicked');
+          this._prevLayer();
+          break;
+        case 'goToLayer':
+          logger.info(`📨 [WIZARD] → goToLayer(${message.index}) clicked`);
+          this._goToLayer(message.index);
+          break;
 
-      // Field updates
-      case 'updateField':
-        this._updateField(message.field, message.value);
-        break;
-      case 'updateLayerField':
-        this._updateLayerField(message.field, message.value);
-        break;
-      case 'incrementLayers':
-        this._incrementLayers(message.delta || 0);
-        break;
-      case 'incrementWorkforce':
-        this._incrementWorkforce(message.delta || 0);
-        break;
-      case 'incrementContinuation':
-        this._incrementContinuation(message.delta || 0);
-        break;
+        // Field updates
+        case 'updateField':
+          logger.debug(`📨 [WIZARD] → updateField: ${message.field} = ${message.value}`);
+          this._updateField(message.field, message.value);
+          break;
+        case 'updateLayerField':
+          logger.debug(`📨 [WIZARD] → updateLayerField: ${message.field} = ${message.value}`);
+          this._updateLayerField(message.field, message.value);
+          break;
+        case 'incrementLayers':
+          logger.info(`📨 [WIZARD] → incrementLayers(${message.delta})`);
+          this._incrementLayers(message.delta || 0);
+          break;
+        case 'incrementWorkforce':
+          logger.info(`📨 [WIZARD] → incrementWorkforce(${message.delta})`);
+          this._incrementWorkforce(message.delta || 0);
+          break;
+        case 'incrementContinuation':
+          logger.info(`📨 [WIZARD] → incrementContinuation(${message.delta})`);
+          this._incrementContinuation(message.delta || 0);
+          break;
 
-      // File operations
-      case 'addInputFile':
-        await this._addInputFile();
-        break;
-      case 'addInputFolder':
-        await this._addInputFolder();
-        break;
-      case 'removeInputFile':
-        this._removeInputFile(message.index);
-        break;
-      case 'updateInputFile':
-        this._updateInputFile(message.index, message.field, message.value);
-        break;
-      case 'pickOutputDirectory':
-        await this._pickOutputDirectory();
-        break;
+        // File operations
+        case 'addInputFile':
+          logger.info('📨 [WIZARD] → addInputFile clicked');
+          await this._addInputFile();
+          break;
+        case 'addInputFolder':
+          logger.info('📨 [WIZARD] → addInputFolder clicked');
+          await this._addInputFolder();
+          break;
+        case 'removeInputFile':
+          logger.info(`📨 [WIZARD] → removeInputFile(${message.index})`);
+          this._removeInputFile(message.index);
+          break;
+        case 'updateInputFile':
+          logger.debug(`📨 [WIZARD] → updateInputFile(${message.index}, ${message.field})`);
+          this._updateInputFile(message.index, message.field, message.value);
+          break;
+        case 'pickOutputDirectory':
+          logger.info('📨 [WIZARD] → pickOutputDirectory clicked');
+          await this._pickOutputDirectory();
+          break;
 
-      // Resource toggles
-      case 'toggleResource':
-        this._toggleResource(message.path, message.field);
-        break;
+        // Resource toggles
+        case 'toggleResource':
+          logger.info(`📨 [WIZARD] → toggleResource: ${message.path}.${message.field}`);
+          this._toggleResource(message.path, message.field);
+          break;
 
-      // Actions
-      case 'createProject':
-        await this._createProject();
-        break;
-      case 'cancel':
-        this.dispose();
-        break;
+        // Actions
+        case 'createProject':
+          logger.info('🚀 [WIZARD] → CREATE PROJECT clicked!');
+          await this._createProject();
+          break;
+        case 'cancel':
+          logger.info('📨 [WIZARD] → cancel clicked');
+          this.dispose();
+          break;
+        default:
+          logger.warn(`📨 [WIZARD] Unknown command: ${message.command}`);
+      }
+    } catch (error) {
+      logger.error(`❌ [WIZARD] Error handling message ${message.command}:`, error);
+      vscode.window.showErrorMessage(`Wizard error: ${error}`);
     }
   }
 
@@ -382,6 +410,8 @@ export class ProjectSpecWizardPanel {
     const oldLayers = this._state.layers;
     const newLayers: LayerConfig[] = [];
 
+    logger.info(`🔨 [REBUILD] _rebuildLayers() - target: ${count}, existing: ${oldLayers.length}`);
+
     for (let i = 0; i < count; i++) {
       // Determine correct default type based on position
       const isLast = i === count - 1;
@@ -401,15 +431,19 @@ export class ProjectSpecWizardPanel {
         // But only auto-fix if the type no longer makes sense
         if (wasLastLayer && !isNowLastLayer && existingLayer.type === 'worker') {
           // Was last (worker), but now has layers below - change to teamleader
+          logger.debug(`🔨 [REBUILD] Layer ${i + 1}: was last worker, now middle → teamleader`);
           existingLayer.type = 'teamleader';
         } else if (!wasLastLayer && isNowLastLayer && existingLayer.type !== 'worker') {
           // Now is last layer - should be worker (can't delegate)
+          logger.debug(`🔨 [REBUILD] Layer ${i + 1}: now last → forcing worker type`);
           existingLayer.type = 'worker';
         }
         
+        logger.debug(`🔨 [REBUILD] Layer ${i + 1}: keeping existing, type=${existingLayer.type}`);
         newLayers.push(existingLayer);
       } else {
         // Create new layer with defaults
+        logger.debug(`🔨 [REBUILD] Layer ${i + 1}: creating new, type=${correctDefaultType}`);
         newLayers.push({
           number: i + 1,
           type: correctDefaultType,
@@ -428,9 +462,11 @@ export class ProjectSpecWizardPanel {
     }
 
     this._state.layers = newLayers;
+    logger.info(`🔨 [REBUILD] Rebuilt ${newLayers.length} layers: [${newLayers.map(l => `${l.number}:${l.type}`).join(', ')}]`);
     
     // Reset layer index if out of bounds
     if (this._state.currentLayerIndex >= count) {
+      logger.debug(`🔨 [REBUILD] Resetting currentLayerIndex from ${this._state.currentLayerIndex} to 0`);
       this._state.currentLayerIndex = 0;
     }
   }
@@ -502,28 +538,37 @@ export class ProjectSpecWizardPanel {
     // Only check if we have all required data for creating project
     // Run full validation first
     this._validate();
-    return Object.keys(this._state.errors).length === 0;
+    const valid = Object.keys(this._state.errors).length === 0;
+    logger.info(`✅ [VALID] _isValid() = ${valid}, errors: ${JSON.stringify(this._state.errors)}`);
+    return valid;
   }
 
   private _isCurrentStepValid(): boolean {
     // Check validity for current step only
+    let valid = false;
     switch (this._state.currentStep) {
       case 1:
-        return !!this._state.projectName && /^[a-zA-Z0-9_-]+$/.test(this._state.projectName);
+        valid = !!this._state.projectName && /^[a-zA-Z0-9_-]+$/.test(this._state.projectName);
+        break;
       case 2:
-        return this._state.workforceLayers >= 1 && this._state.workforceLayers <= 99;
+        valid = this._state.workforceLayers >= 1 && this._state.workforceLayers <= 99;
+        break;
       case 3:
-        return !!this._state.outputDirectory;
+        valid = !!this._state.outputDirectory;
+        break;
       case 4:
         // All layers must have task description, managers need reporting
-        return this._state.layers.every(layer => {
+        valid = this._state.layers.every(layer => {
           if (!layer.taskDescription) return false;
           if (layer.type === 'manager' && !layer.reporting) return false;
           return true;
         }) && (this._state.layers.length === 0 || this._state.layers[this._state.layers.length - 1].type === 'worker');
+        break;
       default:
-        return true;
+        valid = true;
     }
+    logger.debug(`✅ [VALID] _isCurrentStepValid() step=${this._state.currentStep} = ${valid}`);
+    return valid;
   }
 
   // ===========================================================================
@@ -531,57 +576,84 @@ export class ProjectSpecWizardPanel {
   // ===========================================================================
 
   private _nextStep(): void {
+    logger.info(`➡️ [NAV] _nextStep() from step ${this._state.currentStep}`);
     if (this._state.currentStep < 4) {
       if (this._state.currentStep === 2) {
+        logger.info('➡️ [NAV] Rebuilding layers (leaving step 2)');
         this._rebuildLayers();
       }
       if (this._state.currentStep === 3) {
+        logger.info('➡️ [NAV] Syncing resources to layers (leaving step 3)');
         this._syncResourcesToLayers();
       }
       this._state.currentStep++;
       this._state.currentLayerIndex = 0;
+      logger.info(`➡️ [NAV] Now on step ${this._state.currentStep}`);
       this._update();
+    } else {
+      logger.warn('➡️ [NAV] Cannot go next - already on step 4');
     }
   }
 
   private _prevStep(): void {
+    logger.info(`⬅️ [NAV] _prevStep() from step ${this._state.currentStep}`);
     if (this._state.currentStep > 1) {
       this._state.currentStep--;
       this._state.currentLayerIndex = 0;
+      logger.info(`⬅️ [NAV] Now on step ${this._state.currentStep}`);
       this._update();
+    } else {
+      logger.warn('⬅️ [NAV] Cannot go back - already on step 1');
     }
   }
 
   private _goToStep(step: number): void {
+    logger.info(`🎯 [NAV] _goToStep(${step}) from step ${this._state.currentStep}`);
     if (step >= 1 && step <= 4) {
       if (step === 4 && this._state.currentStep < 4) {
+        logger.info('🎯 [NAV] Jumping to step 4 - rebuilding layers & syncing resources');
         this._rebuildLayers();
         this._syncResourcesToLayers();
       }
       this._state.currentStep = step;
       this._state.currentLayerIndex = 0;
+      logger.info(`🎯 [NAV] Now on step ${this._state.currentStep}`);
       this._update();
+    } else {
+      logger.warn(`🎯 [NAV] Invalid step: ${step}`);
     }
   }
 
   private _nextLayer(): void {
+    logger.info(`➡️ [NAV] _nextLayer() from layer ${this._state.currentLayerIndex}`);
     if (this._state.currentLayerIndex < this._state.workforceLayers - 1) {
       this._state.currentLayerIndex++;
+      logger.info(`➡️ [NAV] Now on layer ${this._state.currentLayerIndex}`);
       this._update();
+    } else {
+      logger.warn('➡️ [NAV] Cannot go next - already on last layer');
     }
   }
 
   private _prevLayer(): void {
+    logger.info(`⬅️ [NAV] _prevLayer() from layer ${this._state.currentLayerIndex}`);
     if (this._state.currentLayerIndex > 0) {
       this._state.currentLayerIndex--;
+      logger.info(`⬅️ [NAV] Now on layer ${this._state.currentLayerIndex}`);
       this._update();
+    } else {
+      logger.warn('⬅️ [NAV] Cannot go back - already on first layer');
     }
   }
 
   private _goToLayer(index: number): void {
+    logger.info(`🎯 [NAV] _goToLayer(${index}) from layer ${this._state.currentLayerIndex}`);
     if (index >= 0 && index < this._state.workforceLayers) {
       this._state.currentLayerIndex = index;
+      logger.info(`🎯 [NAV] Now on layer ${this._state.currentLayerIndex}`);
       this._update();
+    } else {
+      logger.warn(`🎯 [NAV] Invalid layer index: ${index} (max: ${this._state.workforceLayers - 1})`);
     }
   }
 
@@ -693,15 +765,30 @@ export class ProjectSpecWizardPanel {
   // ===========================================================================
 
   private async _createProject(): Promise<void> {
+    logger.info('🏗️ [WIZARD] _createProject() started');
+    logger.info('🏗️ [WIZARD] Current state:', { 
+      projectName: this._state.projectName,
+      workforceLayers: this._state.workforceLayers,
+      layersCount: this._state.layers.length,
+      inputFiles: this._state.inputFiles.length,
+      outputDirectory: this._state.outputDirectory
+    });
+    
     this._validate();
+    logger.info('🏗️ [WIZARD] Validation complete, errors:', this._state.errors);
+    
     if (!this._isValid()) {
       const errorMessages = Object.values(this._state.errors).join('\n');
+      logger.error('❌ [WIZARD] Validation failed:', errorMessages);
       vscode.window.showErrorMessage(`Please fix validation errors:\n${errorMessages}`);
       return;
     }
+    
+    logger.info('✅ [WIZARD] Validation passed');
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
+      logger.error('❌ [WIZARD] No workspace folder open');
       vscode.window.showErrorMessage('No workspace folder open');
       return;
     }
@@ -709,9 +796,12 @@ export class ProjectSpecWizardPanel {
     const workspaceRoot = workspaceFolder.uri.fsPath;
     const projectRoot = path.join(workspaceRoot, `root_of_project_${this._state.projectName}`);
     const projectXmlPath = path.join(projectRoot, `project-spec.xml`);
+    
+    logger.info('🏗️ [WIZARD] Paths:', { workspaceRoot, projectRoot, projectXmlPath });
 
     // Check if project already exists
     if (pathExists(projectRoot)) {
+      logger.warn('⚠️ [WIZARD] Project folder exists, asking for overwrite');
       const overwrite = await vscode.window.showWarningMessage(
         `Project folder already exists: ${projectRoot}\nOverwrite?`,
         { modal: true },
@@ -719,41 +809,55 @@ export class ProjectSpecWizardPanel {
         'Cancel'
       );
       if (overwrite !== 'Overwrite') {
+        logger.info('🏗️ [WIZARD] User cancelled overwrite');
         return;
       }
+      logger.info('🏗️ [WIZARD] User confirmed overwrite');
     }
 
     try {
       // Create directory structure
+      logger.info('🏗️ [WIZARD] Creating project structure...');
       await this._createProjectStructure(projectRoot);
+      logger.info('✅ [WIZARD] Project structure created');
       
       // Generate and save XML
+      logger.info('🏗️ [WIZARD] Generating project-spec.xml...');
       const xml = this._generateXml();
       fs.writeFileSync(projectXmlPath, xml, 'utf8');
+      logger.info('✅ [WIZARD] project-spec.xml saved');
 
       // Generate layer prompts
+      logger.info('🏗️ [WIZARD] Generating layer prompts...');
       await this._generateLayerPrompts(projectRoot);
+      logger.info('✅ [WIZARD] Layer prompts generated');
 
-      logger.info(`Project created: ${this._state.projectName}`);
+      logger.info(`✅ [WIZARD] Project created: ${this._state.projectName}`);
 
       // Calculate total worker count
       const totalWorkers = this._calculateTotalWorkers();
+      logger.info(`🏗️ [WIZARD] Total workers to spawn: ${totalWorkers}`);
 
       // Update sidebar with project path for later
       const sidebar = getSidebarProvider();
       if (sidebar) {
+        logger.info('🏗️ [WIZARD] Updating sidebar state');
         sidebar.updateState({
           hasProject: true,
           projectStatus: 'suspended',
           currentRole: 'manager',
           processingStatus: 'idle',
         });
+      } else {
+        logger.warn('⚠️ [WIZARD] Sidebar provider not found');
       }
 
       // Close wizard FIRST to prevent frozen UI
+      logger.info('🏗️ [WIZARD] Closing wizard panel');
       this.dispose();
 
       // Open the project XML
+      logger.info('🏗️ [WIZARD] Opening project-spec.xml in editor');
       const doc = await vscode.workspace.openTextDocument(projectXmlPath);
       await vscode.window.showTextDocument(doc);
 
@@ -763,10 +867,12 @@ export class ProjectSpecWizardPanel {
       );
 
       // Auto-spawn workers immediately (no blocking dialog)
+      logger.info('🚀 [WIZARD] Starting worker spawn...');
       await this._spawnProjectWorkers(projectRoot, totalWorkers);
+      logger.info('✅ [WIZARD] Worker spawn complete!');
     } catch (error) {
+      logger.error('❌ [WIZARD] Project creation failed:', error);
       vscode.window.showErrorMessage(`Failed to create project: ${error}`);
-      logger.error('Project creation failed', error);
     }
   }
 
@@ -864,7 +970,10 @@ ${layer.reporting ? `## Reporting Instructions\n${layer.reporting}` : ''}
    * Spawn workers for the project
    */
   private async _spawnProjectWorkers(projectRoot: string, totalWorkers: number): Promise<void> {
+    logger.info(`🚀 [SPAWN] _spawnProjectWorkers() started, projectRoot: ${projectRoot}, totalWorkers: ${totalWorkers}`);
+    
     const workersDir = path.join(projectRoot, 'workers');
+    logger.info(`🚀 [SPAWN] Workers directory: ${workersDir}`);
     ensureDir(workersDir);
 
     await vscode.window.withProgress({
@@ -873,19 +982,29 @@ ${layer.reporting ? `## Reporting Instructions\n${layer.reporting}` : ''}
       cancellable: true
     }, async (progress, token) => {
       let spawned = 0;
+      logger.info(`🚀 [SPAWN] Starting spawn loop, layers: ${this._state.layers.length}`);
 
       for (const layer of this._state.layers) {
-        if (token.isCancellationRequested) break;
+        if (token.isCancellationRequested) {
+          logger.warn('🚀 [SPAWN] Cancelled by user');
+          break;
+        }
 
         const workersForLayer = layer.type === 'worker' ? 1 : layer.workforceSize;
+        logger.info(`🚀 [SPAWN] Layer ${layer.number} (${layer.type}): spawning ${workersForLayer} workers`);
         
         for (let i = 0; i < workersForLayer; i++) {
-          if (token.isCancellationRequested) break;
+          if (token.isCancellationRequested) {
+            logger.warn('🚀 [SPAWN] Cancelled by user');
+            break;
+          }
 
           const workerId = `worker-L${layer.number}-${i + 1}`;
           const workerDir = path.join(workersDir, workerId);
           
+          logger.info(`🚀 [SPAWN] Provisioning worker: ${workerId} at ${workerDir}`);
           await this._provisionWorker(workerDir, workerId, layer);
+          logger.info(`✅ [SPAWN] Worker ${workerId} provisioned`);
           
           spawned++;
           progress.report({ 
@@ -899,9 +1018,11 @@ ${layer.reporting ? `## Reporting Instructions\n${layer.reporting}` : ''}
       }
 
       // Auto-open worker windows (no dialog - just do it!)
+      logger.info(`🚀 [SPAWN] All ${spawned} workers provisioned, opening windows...`);
       progress.report({ message: 'Opening VS Code windows...' });
       await this._openWorkerWindows(workersDir, spawned);
       
+      logger.info(`✅ [SPAWN] ${spawned} worker windows launched!`);
       vscode.window.showInformationMessage(`🚀 ${spawned} worker windows launched!`);
 
       return spawned;
@@ -912,9 +1033,12 @@ ${layer.reporting ? `## Reporting Instructions\n${layer.reporting}` : ''}
    * Provision a single worker
    */
   private async _provisionWorker(workerDir: string, workerId: string, layer: LayerConfig): Promise<void> {
+    logger.debug(`📦 [PROVISION] Provisioning ${workerId}...`);
+    
     ensureDir(workerDir);
     ensureDir(path.join(workerDir, 'output'));
     ensureDir(path.join(workerDir, '.adg-parallels', 'worker'));
+    logger.debug(`📦 [PROVISION] Directories created for ${workerId}`);
 
     const projectRoot = path.dirname(path.dirname(workerDir));
     const projectSpecPath = path.join(projectRoot, 'project-spec.xml');
@@ -938,7 +1062,9 @@ ${layer.reporting ? `## Reporting Instructions\n${layer.reporting}` : ''}
       instructionsVersion: '1.0',
     };
 
-    writeWorkerXml(path.join(workerDir, 'worker.xml'), workerConfig);
+    const workerXmlPath = path.join(workerDir, 'worker.xml');
+    writeWorkerXml(workerXmlPath, workerConfig);
+    logger.debug(`📦 [PROVISION] worker.xml written: ${workerXmlPath}`);
 
     // Create initial heartbeat
     const heartbeat = `<?xml version="1.0" encoding="UTF-8"?>
@@ -954,6 +1080,7 @@ ${layer.reporting ? `## Reporting Instructions\n${layer.reporting}` : ''}
 </heartbeat>
 `;
     fs.writeFileSync(path.join(workerDir, 'heartbeat.xml'), heartbeat, 'utf8');
+    logger.debug(`📦 [PROVISION] heartbeat.xml written for ${workerId}`);
 
     // Copy layer prompt as worker instructions
     const promptContent = this._generateLayerPromptContent(layer);
@@ -981,35 +1108,53 @@ Update \`heartbeat.xml\` with status:
 Good luck! 🚀
 `;
     fs.writeFileSync(path.join(workerDir, 'instructions.md'), instructions, 'utf8');
+    logger.debug(`📦 [PROVISION] instructions.md written for ${workerId}`);
 
-    logger.debug(`Provisioned worker: ${workerId}`);
+    logger.info(`✅ [PROVISION] Worker ${workerId} fully provisioned`);
   }
 
   /**
    * Open VS Code windows for workers
    */
   private async _openWorkerWindows(workersDir: string, count: number): Promise<void> {
+    logger.info(`🪟 [WINDOWS] _openWorkerWindows() started, dir: ${workersDir}, expected: ${count}`);
+    
     const entries = fs.readdirSync(workersDir, { withFileTypes: true });
+    logger.info(`🪟 [WINDOWS] Found ${entries.length} entries in workers dir`);
+    
+    let opened = 0;
     
     for (const entry of entries) {
       if (entry.isDirectory() && entry.name.startsWith('worker-')) {
         const workerPath = path.join(workersDir, entry.name);
         const workerConfigPath = path.join(workerPath, 'worker.xml');
         
+        logger.info(`🪟 [WINDOWS] Checking worker: ${entry.name}`);
+        
         // Verify worker is properly provisioned
         if (!pathExists(workerConfigPath)) {
-          logger.warn(`Skipping worker ${entry.name} - no worker.xml found`);
+          logger.warn(`⚠️ [WINDOWS] Skipping ${entry.name} - no worker.xml found at ${workerConfigPath}`);
           continue;
         }
         
         const uri = vscode.Uri.file(workerPath);
-        logger.info(`Opening worker window: ${entry.name}`);
-        await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+        logger.info(`🪟 [WINDOWS] Opening window for: ${entry.name} (${uri.fsPath})`);
+        
+        try {
+          await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+          opened++;
+          logger.info(`✅ [WINDOWS] Window opened for ${entry.name} (${opened}/${count})`);
+        } catch (error) {
+          logger.error(`❌ [WINDOWS] Failed to open window for ${entry.name}:`, error);
+        }
         
         // Larger delay between window opens to allow proper initialization
+        logger.debug(`🪟 [WINDOWS] Waiting 2000ms before next window...`);
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
+    
+    logger.info(`✅ [WINDOWS] Finished opening windows: ${opened}/${count} successful`);
   }
 
   private async _createProjectStructure(projectRoot: string): Promise<void> {
