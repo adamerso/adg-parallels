@@ -81,6 +81,15 @@ export interface Task {
   // Subtask support (for task-splitter)
   parentTaskId?: number;     // ID of parent mega-task
   subtaskIds?: number[];     // IDs of child subtasks (if this is a mega-task)
+  
+  // v0.4.5+ New fields from XML mapping:
+  // (mapped from wizard form fields)
+  layer?: number;                         // Layer number in hierarchy
+  outputDir?: string;                     // move_completed_task_artifact_to
+  resourcesDescription?: string;          // resources_description
+  continuationPrompt?: string;            // continuation_prompt (poganiacz)
+  maxContinuationAttempts?: number;       // max_continuation_attempts
+  reportingInstructions?: string;         // reporting_instructions
 }
 
 /**

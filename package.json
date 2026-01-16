@@ -2,7 +2,7 @@
   "name": "adg-parallels",
   "displayName": "ADG-Parallels",
   "description": "AI Delegation Grid - Parallel task processing through multiple GitHub Copilot instances in a corporate hierarchy. Many Ejajkas, One Goal! 🥚",
-  "version": "0.4.4",
+  "version": "0.5.0",
   "publisher": "adg-parallels",
   "author": {
     "name": "ADG-Parallels Team"

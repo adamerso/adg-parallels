@@ -861,15 +861,12 @@ export class ProjectSpecWizardPanel {
       const doc = await vscode.workspace.openTextDocument(projectXmlPath);
       await vscode.window.showTextDocument(doc);
 
-      // Show notification and AUTO-START workers without blocking
+      // Show notification - workers will be spawned via "Start Processing" button
       vscode.window.showInformationMessage(
-        `✅ Project "${this._state.projectName}" created! Spawning ${totalWorkers} workers...`
+        `✅ Project "${this._state.projectName}" created with ${totalWorkers} tasks! Click "Start Processing" in sidebar to spawn workers.`
       );
 
-      // Auto-spawn workers immediately (no blocking dialog)
-      logger.info('🚀 [WIZARD] Starting worker spawn...');
-      await this._spawnProjectWorkers(projectRoot, totalWorkers);
-      logger.info('✅ [WIZARD] Worker spawn complete!');
+      logger.info('✅ [WIZARD] Project creation complete! Workers will spawn on Start Processing.');
     } catch (error) {
       logger.error('❌ [WIZARD] Project creation failed:', error);
       vscode.window.showErrorMessage(`Failed to create project: ${error}`);
@@ -880,10 +877,8 @@ export class ProjectSpecWizardPanel {
    * Calculate total workers to spawn from all layers
    */
   private _calculateTotalWorkers(): number {
+    // All layer types use workforceSize (worker layer can also have multiple ejajki)
     return this._state.layers.reduce((total, layer) => {
-      if (layer.type === 'worker') {
-        return total + 1; // Worker layer = 1 agent
-      }
       return total + layer.workforceSize;
     }, 0);
   }
@@ -967,6 +962,34 @@ ${layer.reporting ? `## Reporting Instructions\n${layer.reporting}` : ''}
   }
 
   /**
+  /**
+   * Provision worker folders (creates folders and configs, but doesn't open windows)
+   * Windows are opened later via "Start Processing" button
+   */
+  private async _provisionWorkerFolders(projectRoot: string): Promise<void> {
+    const workersDir = path.join(projectRoot, 'workers');
+    ensureDir(workersDir);
+    
+    let provisioned = 0;
+    
+    for (const layer of this._state.layers) {
+      const workersForLayer = layer.workforceSize;
+      
+      for (let i = 0; i < workersForLayer; i++) {
+        const workerId = `worker-L${layer.number}-${i + 1}`;
+        const workerDir = path.join(workersDir, workerId);
+        
+        await this._provisionWorker(workerDir, workerId, layer);
+        provisioned++;
+        
+        logger.info(`📦 [PROVISION] ${provisioned}: ${workerId} folder created`);
+      }
+    }
+    
+    logger.info(`✅ [PROVISION] Created ${provisioned} worker folders`);
+  }
+
+  /**
    * Spawn workers for the project
    */
   private async _spawnProjectWorkers(projectRoot: string, totalWorkers: number): Promise<void> {
@@ -990,7 +1013,8 @@ ${layer.reporting ? `## Reporting Instructions\n${layer.reporting}` : ''}
           break;
         }
 
-        const workersForLayer = layer.type === 'worker' ? 1 : layer.workforceSize;
+        // All layer types use workforceSize (worker layer can also have multiple ejajki)
+        const workersForLayer = layer.workforceSize;
         logger.info(`🚀 [SPAWN] Layer ${layer.number} (${layer.type}): spawning ${workersForLayer} workers`);
         
         for (let i = 0; i < workersForLayer; i++) {
@@ -1188,26 +1212,13 @@ workers/
 `;
     fs.writeFileSync(path.join(projectRoot, '.gitignore'), gitignore, 'utf8');
 
-    // Create tasks.xml (required for workers)
-    const tasksXml = `<?xml version="1.0" encoding="UTF-8"?>
-<tasks>
-  <metadata>
-    <project>${this._escapeXml(this._state.projectName)}</project>
-    <created_at>${new Date().toISOString()}</created_at>
-  </metadata>
-  <config>
-    <worker_count>${this._calculateTotalWorkers()}</worker_count>
-    <statuses>pending,processing,completed,failed</statuses>
-    <completed_statuses>completed</completed_statuses>
-    <failed_statuses>failed</failed_statuses>
-  </config>
-  <task_list>
-    <!-- Tasks will be added here -->
-  </task_list>
-</tasks>
-`;
+    // Create tasks.xml with actual tasks for each worker
+    const tasksXml = this._generateTasksXml(projectRoot);
     fs.writeFileSync(path.join(projectRoot, 'tasks.xml'), tasksXml, 'utf8');
-    logger.info('Created tasks.xml');
+    logger.info('Created tasks.xml with worker tasks');
+
+    // Create worker folders (but don't open windows - that happens on Start Processing)
+    await this._provisionWorkerFolders(projectRoot);
 
     // Create hierarchy-config.xml
     const hierarchyXml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -1319,6 +1330,110 @@ ${layer.resources.filter(r => r.use).map(r =>
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;');
+  }
+
+  /**
+   * Generate tasks.xml with tasks for each worker in each layer
+   * Field mapping (form → XML):
+   * - projectName → project_name
+   * - workforceLayers → layers_count
+   * - inputFiles → list_of_additional_resources
+   * - inputDescription → resources_description
+   * - outputDirectory → move_completed_task_artifact_to
+   * - taskDescription → your_assigned_task
+   * - continuationPrompt → continuation_prompt
+   * - reporting → reporting_instructions
+   */
+  private _generateTasksXml(projectRoot: string): string {
+    const s = this._state;
+    const timestamp = new Date().toISOString();
+    
+    // Generate tasks - one task per worker instance
+    let taskId = 0;
+    const tasks: string[] = [];
+    
+    for (const layer of s.layers) {
+      // Get number of workers for this layer
+      // All layer types use workforceSize (worker layer can also have multiple ejajki)
+      const workerCount = layer.workforceSize;
+      
+      // Get resources for this layer
+      const layerResources = layer.resources
+        .filter(r => r.use)
+        .map(r => `          <resource path="${this._escapeXml(r.path)}" readonly="${r.readonly}"/>`)
+        .join('\n');
+      
+      // Create a task for each worker in this layer
+      for (let i = 0; i < workerCount; i++) {
+        taskId++;
+        const workerId = `worker-L${layer.number}-${i + 1}`;
+        
+        tasks.push(`    <task id="${taskId}" status="pending">
+      <worker_id>${workerId}</worker_id>
+      <layer>${layer.number}</layer>
+      <layer_type>${layer.type}</layer_type>
+      
+      <!-- Your Assigned Task -->
+      <your_assigned_task><![CDATA[${layer.taskDescription}]]></your_assigned_task>
+      
+      <!-- Move Completed Task Artifact To -->
+      <move_completed_task_artifact_to>${this._escapeXml(s.outputDirectory)}</move_completed_task_artifact_to>
+      
+      <!-- Resources Description -->
+      <resources_description><![CDATA[${s.inputDescription}]]></resources_description>
+      
+      <!-- List of Additional Resources -->
+      <list_of_additional_resources>
+${layerResources}
+      </list_of_additional_resources>
+      
+      <!-- Continuation Prompt (poganiacz) -->
+      <continuation_prompt><![CDATA[${layer.continuationPrompt}]]></continuation_prompt>
+      <max_continuation_attempts>${layer.maxContinuationAttempts}</max_continuation_attempts>
+      
+      ${layer.reporting ? `<!-- Reporting Instructions -->\n      <reporting_instructions><![CDATA[${layer.reporting}]]></reporting_instructions>` : ''}
+      
+      <!-- Execution tracking -->
+      <retry_count>0</retry_count>
+      <max_retries>3</max_retries>
+    </task>`);
+      }
+    }
+    
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ADG-Parallels Task File
+  Generated: ${timestamp}
+  
+  Field Mapping:
+  - project_name: Name of the project
+  - layers_count: Number of hierarchy layers
+  - your_assigned_task: The task to execute (from taskDescription)
+  - move_completed_task_artifact_to: Output directory
+  - resources_description: How to interpret input resources
+  - list_of_additional_resources: Files/folders available for this task
+  - continuation_prompt: Prompt to nudge worker when stuck
+  - reporting_instructions: How to report progress
+-->
+<tasks>
+  <metadata>
+    <project_name>${this._escapeXml(s.projectName)}</project_name>
+    <layers_count>${s.workforceLayers}</layers_count>
+    <created_at>${timestamp}</created_at>
+  </metadata>
+  
+  <config>
+    <worker_count>${this._calculateTotalWorkers()}</worker_count>
+    <statuses>pending,processing,completed,failed</statuses>
+    <completed_statuses>completed</completed_statuses>
+    <failed_statuses>failed</failed_statuses>
+  </config>
+  
+  <task_list>
+${tasks.join('\n\n')}
+  </task_list>
+</tasks>
+`;
   }
 
   // ===========================================================================

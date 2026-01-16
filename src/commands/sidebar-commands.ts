@@ -7,12 +7,13 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { getSidebarProvider } from '../views/sidebar-webview';
 import { logger } from '../utils/logger';
 import { findProjectSpec, loadProjectSpec, getSpawningLayers } from '../core/project-spec-loader';
 import { WorkerLifecycleManager, createManagerLifecycle } from '../core/worker-lifecycle';
 import { TaskManager } from '../core/task-manager';
-import { pathExists } from '../utils/file-operations';
+import { pathExists, ensureDir } from '../utils/file-operations';
 
 // =============================================================================
 // START PROCESSING
@@ -62,68 +63,85 @@ export async function startProcessing(): Promise<void> {
     return;
   }
   
-  // Get layers that need to spawn workers
-  const spawningLayers = getSpawningLayers(spec);
-  if (spawningLayers.length === 0) {
-    vscode.window.showWarningMessage('No layers configured for spawning workers.');
+  // Get project directory from spec path
+  const projectDir = path.dirname(projectSpecPath);
+  const workersDir = path.join(projectDir, 'workers');
+  
+  // Check if workers folder exists (created by wizard)
+  if (!pathExists(workersDir)) {
+    vscode.window.showErrorMessage('Workers folder not found. Please create a project using the Project Wizard first.');
     return;
   }
   
-  // Get project directory from spec path
-  const projectDir = path.dirname(projectSpecPath);
-  
-  // Initialize task manager - tasks file is in the project directory
-  const tasksFilePath = path.join(projectDir, 'tasks.xml');
-  
-  // Create empty tasks file if it doesn't exist
-  if (!pathExists(tasksFilePath)) {
-    const fs = await import('fs');
-    const emptyTasks = `<?xml version="1.0" encoding="UTF-8"?>
-<tasks>
-  <metadata>
-    <project>${spec.name}</project>
-    <created_at>${new Date().toISOString()}</created_at>
-  </metadata>
-  <task_list>
-  </task_list>
-</tasks>
-`;
-    fs.writeFileSync(tasksFilePath, emptyTasks, 'utf8');
-    logger.info('Created empty tasks.xml');
+  // Find all worker folders (worker-L*-* pattern)
+  const workerFolders: string[] = [];
+  try {
+    const entries = fs.readdirSync(workersDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.startsWith('worker-L')) {
+        const workerPath = path.join(workersDir, entry.name);
+        const workerXmlPath = path.join(workerPath, 'worker.xml');
+        
+        // Only include properly provisioned workers
+        if (pathExists(workerXmlPath)) {
+          workerFolders.push(workerPath);
+        }
+      }
+    }
+  } catch (e) {
+    logger.error('Failed to read workers directory', e);
+    vscode.window.showErrorMessage('Failed to read workers directory');
+    return;
   }
   
-  const taskManager = new TaskManager(tasksFilePath);
+  if (workerFolders.length === 0) {
+    vscode.window.showErrorMessage('No workers found. Please create a project using the Project Wizard first.');
+    return;
+  }
   
-  // Create lifecycle manager and spawn workers for each layer
-  // Use project directory as management dir
-  logger.info('Creating lifecycle manager', { projectDir, tasksFilePath });
-  const lifecycleManager = createManagerLifecycle(projectDir, taskManager);
-  await lifecycleManager.initialize();
+  logger.info(`Found ${workerFolders.length} worker folders to spawn`, { workerFolders });
   
-  let totalSpawned = 0;
-  
-  logger.info(`Found ${spawningLayers.length} layers to spawn`, { 
-    layers: spawningLayers.map(l => ({ num: l.number, type: l.type, size: l.workforceSize }))
+  // Open VS Code windows for each worker
+  await vscode.window.withProgress({
+    location: vscode.ProgressLocation.Notification,
+    title: `Spawning ${workerFolders.length} workers...`,
+    cancellable: true
+  }, async (progress, token) => {
+    let opened = 0;
+    
+    for (const workerPath of workerFolders) {
+      if (token.isCancellationRequested) {
+        logger.warn('Worker spawn cancelled by user');
+        break;
+      }
+      
+      const workerId = path.basename(workerPath);
+      logger.info(`🪟 Opening window for: ${workerId}`);
+      
+      try {
+        const uri = vscode.Uri.file(workerPath);
+        await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+        opened++;
+        
+        progress.report({
+          increment: (100 / workerFolders.length),
+          message: `${opened}/${workerFolders.length} workers started`
+        });
+        
+        logger.info(`✅ Window opened for ${workerId} (${opened}/${workerFolders.length})`);
+      } catch (error) {
+        logger.error(`Failed to open window for ${workerId}:`, error);
+      }
+      
+      // Delay between window opens to allow proper initialization
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    
+    logger.info(`✅ Finished opening ${opened}/${workerFolders.length} worker windows`);
   });
   
-  for (const layer of spawningLayers) {
-    const workerCount = layer.workforceSize;
-    logger.info(`🥚 Spawning ${workerCount} workers for layer ${layer.number} (${layer.type})`);
-    vscode.window.showInformationMessage(`🥚 Spawning ${workerCount} workers for layer ${layer.number}...`);
-    
-    const workers = await lifecycleManager.provisionAndSpawnWorkers(workerCount);
-    totalSpawned += workers.length;
-    
-    logger.info(`✅ Spawned ${workers.length} workers for layer ${layer.number}`);
-    
-    // Log continuation settings for this layer
-    if (layer.continuationPrompt) {
-      logger.info(`Layer ${layer.number} continuation: max ${layer.maxContinuationAttempts} attempts`);
-    }
-  }
-  
-  vscode.window.showInformationMessage(`🚀 Spawned ${totalSpawned} workers!`);
-  logger.info(`Processing started with ${totalSpawned} workers total`);
+  vscode.window.showInformationMessage(`🚀 Spawned ${workerFolders.length} workers!`);
+  logger.info(`Processing started with ${workerFolders.length} workers total`);
 }
 
 // =============================================================================

@@ -102,20 +102,34 @@ export class TaskManager {
       const taskList = tasksRoot.task_list?.task || tasksRoot.task || [];
       
       // Convert XML structure to ProjectTasks
+      // Field mapping (new XML → internal):
+      // - your_assigned_task → description (the main task content)
+      // - worker_id → title (identifies the task)
+      // - layer_type → type
       const tasks: Task[] = (Array.isArray(taskList) ? taskList : [taskList])
         .filter(Boolean)
         .map((t: any, idx: number) => ({
           id: parseInt(t['@_id'] || t.id || String(idx + 1)),
-          title: t.title || '',
-          type: t.type || 'generic',
+          // Use worker_id as title, or fall back to legacy title field
+          title: t.worker_id || t.title || `Task ${idx + 1}`,
+          // Use layer_type as task type, or fall back to legacy type field
+          type: t.layer_type || t.type || 'generic',
           status: (t['@_status'] || t.status || 'pending') as TaskStatus,
-          description: t.description || '',
+          // Use your_assigned_task as description, or fall back to legacy description field
+          description: t.your_assigned_task || t.description || '',
           assignedWorker: t.assigned_worker || t['assigned-worker'] || undefined,
           startedAt: t.started_at || t['started-at'] || undefined,
           completedAt: t.completed_at || t['completed-at'] || undefined,
           retryCount: parseInt(t.retry_count || t['retry-count'] || '0'),
           maxRetries: parseInt(t.max_retries || t['max-retries'] || '3'),
           lastError: t.last_error || t['last-error'] || undefined,
+          // Store additional fields for prompt rendering
+          outputDir: t.move_completed_task_artifact_to || undefined,
+          resourcesDescription: t.resources_description || undefined,
+          continuationPrompt: t.continuation_prompt || undefined,
+          maxContinuationAttempts: parseInt(t.max_continuation_attempts || '10'),
+          reportingInstructions: t.reporting_instructions || undefined,
+          layer: parseInt(t.layer || '1'),
         }));
       
       return {
@@ -162,20 +176,43 @@ export class TaskManager {
 
   /**
    * Save tasks to XML format
+   * Preserves new field mapping (v0.4.5+):
+   * - your_assigned_task (from description)
+   * - move_completed_task_artifact_to (from outputDir)
+   * - resources_description
+   * - continuation_prompt
+   * - reporting_instructions
    */
   private saveXml(data: ProjectTasks): boolean {
     try {
       const taskElements = data.tasks.map(t => `    <task id="${t.id}" status="${t.status}">
-      <title>${this.escapeXml(t.title)}</title>
-      <type>${t.type}</type>
-      <description><![CDATA[${t.description || ''}]]></description>
+      <worker_id>${this.escapeXml(t.title)}</worker_id>
+      <layer>${t.layer || 1}</layer>
+      <layer_type>${t.type}</layer_type>
+      
+      <!-- Your Assigned Task -->
+      <your_assigned_task><![CDATA[${t.description || ''}]]></your_assigned_task>
+      
+      <!-- Move Completed Task Artifact To -->
+      <move_completed_task_artifact_to>${this.escapeXml(t.outputDir || '')}</move_completed_task_artifact_to>
+      
+      <!-- Resources Description -->
+      <resources_description><![CDATA[${t.resourcesDescription || ''}]]></resources_description>
+      
+      <!-- Continuation Prompt (poganiacz) -->
+      <continuation_prompt><![CDATA[${t.continuationPrompt || ''}]]></continuation_prompt>
+      <max_continuation_attempts>${t.maxContinuationAttempts || 10}</max_continuation_attempts>
+      
+      ${t.reportingInstructions ? `<!-- Reporting Instructions -->\n      <reporting_instructions><![CDATA[${t.reportingInstructions}]]></reporting_instructions>` : ''}
+      
+      <!-- Execution tracking -->
       ${t.assignedWorker ? `<assigned_worker>${t.assignedWorker}</assigned_worker>` : ''}
       ${t.startedAt ? `<started_at>${t.startedAt}</started_at>` : ''}
       ${t.completedAt ? `<completed_at>${t.completedAt}</completed_at>` : ''}
       <retry_count>${t.retryCount}</retry_count>
       <max_retries>${t.maxRetries}</max_retries>
       ${t.lastError ? `<last_error><![CDATA[${t.lastError}]]></last_error>` : ''}
-    </task>`).join('\n');
+    </task>`).join('\n\n');
 
       const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
 <tasks>

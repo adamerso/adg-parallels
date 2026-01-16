@@ -1,7 +1,33 @@
 # 🗺️ ADG-Parallels - Roadmap
 
-**Current Version: v0.4.4**  
+**Current Version: v0.5.0 — POC COMPLETE** 🎉  
 **Last Updated: January 2026**
+
+---
+
+## 🎉 MILESTONE: Proof of Concept Complete!
+
+Version 0.5.0 marks the successful completion of the POC phase. The extension demonstrates:
+
+- ✅ Multi-ejajka parallel task execution
+- ✅ Wizard-based project creation
+- ✅ XML-based task queue with direct field mapping
+- ✅ Worker spawning via "Start Processing" button
+- ✅ Heartbeat monitoring
+- ✅ Task completion detection
+
+### 🔮 What's Next: v1.0.0 — Full Refactoring
+
+The v0.x line is now concluded. Version 1.0.0 will bring a **complete codebase refactoring** with:
+
+- Clean architecture (proper separation of concerns)
+- Comprehensive test coverage
+- Production-ready error handling
+- Improved documentation and tutorials
+- Dashboard for visual monitoring
+- Performance optimizations
+
+All proven techniques and patterns from v0.x will be preserved and enhanced.
 
 ---
 
@@ -9,8 +35,7 @@
 - ⬜ To do
 - 🟨 In progress
 - ✅ Done
-- 🔴 Blocked
-- 💡 Idea to verify
+- 🎯 v1.0 Target
 
 ---
 
@@ -330,6 +355,8 @@
 
 | Version | Date | Major Changes |
 |---------|------|---------------|
+| **v0.5.0** | **Jan 2026** | **🎉 POC COMPLETE** — Fixed multi-worker spawning, Start Processing flow, direct XML mapping |
+| v0.4.4 | Jan 2026 | Task queue XML improvements |
 | v0.4.2 | Jan 2026 | New ProjectSpec Wizard, layer-based workforce, auto-spawn |
 | v0.4.1 | Jan 2025 | Bug fixes, XML heartbeat |
 | v0.4.0 | Jan 2025 | XML format migration |
@@ -339,23 +366,51 @@
 
 ---
 
-## 📅 Estimated Timeline
+## 📅 Phase Summary
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| Phase 0 | ✅ Done | |
-| Phase 1 | ✅ Done | Core functionality working |
-| Phase 2 | 🟨 80% | Dashboard webview pending |
-| Phase 3 | ✅ Done | XML adapters complete |
-| Phase 4 | ✅ Done | Audit flow integrated |
-| Phase 5 | 🟨 80% | Basic splitting works |
-| Phase 6 | ✅ Done | Self-healing active |
-| Phase 7 | ✅ Done | Hierarchy support |
-| Phase 8 | 🟨 30% | Documentation in progress |
+| Phase 0: Preparation | ✅ Done | Documentation, scaffold |
+| Phase 1: MVP | ✅ Done | Core functionality |
+| Phase 2: Dashboard | ✅ 90% | Sidebar done, full dashboard → v1.0 |
+| Phase 3: Adapters | ✅ Done | XML adapters |
+| Phase 4: Audit | ✅ Done | Audit stages |
+| Phase 5: Splitting | ✅ Done | Task splitting |
+| Phase 6: Health | ✅ Done | Self-healing |
+| Phase 7: Hierarchy | ✅ Done | Multi-layer support |
+| Phase 8: Polish | 🎯 v1.0 | Full refactoring planned |
+
+---
+
+## 🚀 v1.0.0 Roadmap (Next Major Version)
+
+### Architecture Refactoring
+- 🎯 Clean separation: Core / UI / Commands / Services
+- 🎯 Dependency injection
+- 🎯 Event-driven communication
+- 🎯 State management improvements
+
+### Quality
+- 🎯 Full test coverage (unit + integration)
+- 🎯 Error handling improvements
+- 🎯 Logging standardization
+- 🎯 Performance profiling
+
+### Features
+- 🎯 Visual Dashboard (worker grid, progress charts)
+- 🎯 Adapter marketplace
+- 🎯 Cost tracking (token usage)
+- 🎯 Multi-machine support
+
+### Documentation
+- 🎯 Full API documentation
+- 🎯 Tutorial: First Project
+- 🎯 Tutorial: Custom Adapters
+- 🎯 Video walkthrough
 
 ---
 
 *Last updated: January 2026*
-*Version: 0.4.3*
+*Version: 0.5.0 — POC Complete*
 
-**Status:** Alpha - Functional with Active Development
+**Status:** 🟢 Pre-production Ready — Refactoring phase begins
