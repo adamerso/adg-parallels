@@ -49,7 +49,14 @@ export function detectRole(): RoleInfo | null {
   const workerDir = path.join(adgRoot, WORKER_DIR);
 
   const hasManagement = isDirectory(managementDir);
-  const hasWorker = isDirectory(workerDir);
+  let hasWorker = isDirectory(workerDir);
+  
+  // NEW: Also check for worker.xml in root (MCP workers)
+  const workerXmlPath = path.join(workspaceRoot, WORKER_CONFIG_FILE);
+  const hasWorkerXml = pathExists(workerXmlPath);
+  if (hasWorkerXml) {
+    hasWorker = true;
+  }
 
   // Determine role
   let role: Role;

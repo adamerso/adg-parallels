@@ -21,6 +21,8 @@ import { registerCommands } from './commands';
 import { registerSidebarCommands } from './commands/sidebar-commands';
 import { createSidebarProvider, getSidebarProvider } from './views/sidebar-webview';
 import { showProjectSpecWizard } from './views/project-spec-wizard';
+import { registerMcpTools, unregisterMcpTools, isMcpAvailable } from './mcp/mcp-server';
+import { registerChatParticipant, unregisterChatParticipant, isChatParticipantAvailable } from './mcp/chat-participant';
 import { WorkerConfig } from './types';
 import { XMLParser } from 'fast-xml-parser';
 
@@ -29,7 +31,25 @@ import { XMLParser } from 'fast-xml-parser';
 // =============================================================================
 
 /**
- * Load worker config from XML file
+ * Extended worker config for MCP-based workers
+ */
+interface McpWorkerConfig {
+  workerId: string;
+  role: string;
+  layer: number;
+  parentRole?: string;
+  parentUid?: string;
+  ceoFolder?: string;
+  workerRoot?: string;
+  outputDir?: string;
+  useMcpTools: boolean;
+  claimFromLayer?: number;
+  createdAt: string;
+  instructionsVersion: string;
+}
+
+/**
+ * Load worker config from XML file - supports both legacy and MCP format
  */
 async function loadWorkerConfigXml(filePath: string): Promise<WorkerConfig | null> {
   if (!pathExists(filePath)) {
@@ -67,6 +87,49 @@ async function loadWorkerConfigXml(filePath: string): Promise<WorkerConfig | nul
   }
 }
 
+/**
+ * Load MCP worker config from XML file
+ */
+function loadMcpWorkerConfig(filePath: string): McpWorkerConfig | null {
+  if (!pathExists(filePath)) {
+    return null;
+  }
+  
+  try {
+    const xmlContent = fs.readFileSync(filePath, 'utf8');
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '@_',
+    });
+    const parsed = parser.parse(xmlContent);
+    const worker = parsed.worker || parsed;
+    
+    // Check if this is MCP format
+    const useMcpTools = worker.mcp_config?.use_mcp_tools === 'true' || 
+                        worker.mcp_config?.use_mcp_tools === true;
+    
+    return {
+      workerId: worker.worker_id || '',
+      role: worker.role || 'worker',
+      layer: parseInt(worker.layer, 10) || 1,
+      parentRole: worker.parent_role,
+      parentUid: worker.parent_uid,
+      ceoFolder: worker.paths?.ceo_folder,
+      workerRoot: worker.paths?.worker_root,
+      outputDir: worker.paths?.output_dir,
+      useMcpTools,
+      claimFromLayer: worker.mcp_config?.claim_from_layer 
+        ? parseInt(worker.mcp_config.claim_from_layer, 10) 
+        : undefined,
+      createdAt: worker.created_at || new Date().toISOString(),
+      instructionsVersion: worker.instructions_version || '1.0',
+    };
+  } catch (e) {
+    logger.error('Failed to load MCP worker config', { filePath, error: e });
+    return null;
+  }
+}
+
 // =============================================================================
 // GLOBAL STATE
 // =============================================================================
@@ -91,6 +154,22 @@ export function activate(context: vscode.ExtensionContext): void {
   
   // Register sidebar commands
   registerSidebarCommands(context);
+  
+  // Register MCP tools for AI assistant integration
+  if (isMcpAvailable()) {
+    registerMcpTools(context);
+    logger.info('MCP tools registered - AI assistants can now use ADG-Parallels!');
+  } else {
+    logger.info('MCP not available (VS Code < 1.99 or Language Model API disabled)');
+  }
+  
+  // Register @adg chat participant for Copilot Chat
+  if (isChatParticipantAvailable()) {
+    registerChatParticipant(context);
+    logger.info('@adg chat participant registered - use @adg in Copilot Chat!');
+  } else {
+    logger.info('Chat Participant API not available');
+  }
   
   // Register project wizard command (new ProjectSpec wizard)
   context.subscriptions.push(
@@ -197,10 +276,91 @@ async function initializeRoleBasedFeatures(context: vscode.ExtensionContext): Pr
   if (roleInfo.role === 'worker') {
     logger.info('🥚 Worker mode detected, initializing...');
     
-    // Worker gets tasks file path from worker.xml config
+    // SAFETY CHECK: Verify this is a proper worker folder (name starts with .adg-parallels_)
+    // This prevents accidental auto-start in random folders with worker.xml
+    const folderName = path.basename(roleInfo.paths.workspaceRoot);
+    const isProperWorkerFolder = folderName.startsWith('.adg-parallels_') && !folderName.includes('_CEO_');
+    
+    if (!isProperWorkerFolder) {
+      logger.info('🛑 Folder is not a proper worker folder, skipping auto-start', { folderName });
+      // This might be a CEO or manager folder - don't auto-start
+      return;
+    }
+    
+    // Worker gets config from worker.xml
     const workerConfigPath = path.join(roleInfo.paths.workspaceRoot, 'worker.xml');
     logger.info('🥚 Looking for worker config', { workerConfigPath });
     
+    // Try MCP format first
+    const mcpConfig = loadMcpWorkerConfig(workerConfigPath);
+    
+    if (mcpConfig && mcpConfig.useMcpTools) {
+      // =========================================================================
+      // MCP-BASED WORKER (NEW FORMAT)
+      // =========================================================================
+      logger.info('🥚 MCP worker detected!', { 
+        workerId: mcpConfig.workerId,
+        ceoFolder: mcpConfig.ceoFolder,
+        layer: mcpConfig.layer
+      });
+      
+      vscode.window.showInformationMessage(
+        `🥚 Ejajka ${mcpConfig.workerId} reporting for duty! (MCP mode)`
+      );
+      
+      // Auto-start MCP task execution
+      const config = vscode.workspace.getConfiguration('adg-parallels');
+      const autoStart = config.get('workerAutoStart', true);
+      const autoStartDelay = config.get('workerAutoStartDelay', 5000) as number;
+      
+      if (autoStart) {
+        setTimeout(async () => {
+          logger.info('🥚 MCP Worker auto-starting...');
+          
+          // Open Copilot Chat
+          const chatCommands = [
+            'workbench.action.chat.open',
+            'github.copilot.chat.focus',
+            'workbench.panel.chat.view.copilot.focus',
+          ];
+          
+          for (const cmd of chatCommands) {
+            try {
+              await vscode.commands.executeCommand(cmd);
+              logger.info(`Opened chat with command: ${cmd}`);
+              break;
+            } catch (e) {
+              logger.debug(`Command ${cmd} not available`);
+            }
+          }
+          
+          // Wait for chat to open
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Send initial message to Copilot to start working
+          // The .github/copilot-instructions.md should guide it
+          try {
+            // Type the start command into chat
+            await vscode.commands.executeCommand('workbench.action.chat.open', {
+              query: `I am worker ${mcpConfig.workerId}. Read my instructions from .github/copilot-instructions.md and start claiming and executing tasks using the MCP tools.`
+            });
+            logger.info('🥚 Sent start message to Copilot');
+          } catch (e) {
+            logger.error('Failed to send message to Copilot', e);
+            // Fallback: show message to user
+            vscode.window.showInformationMessage(
+              `🥚 Worker ${mcpConfig.workerId} ready! Tell Copilot to read .github/copilot-instructions.md and start working.`
+            );
+          }
+        }, autoStartDelay);
+      }
+      
+      return; // MCP workers don't use the old lifecycle
+    }
+    
+    // =========================================================================
+    // LEGACY WORKER (OLD FORMAT WITH tasks.xml)
+    // =========================================================================
     const workerConfig = await loadWorkerConfigXml(workerConfigPath);
     
     if (!workerConfig) {
@@ -211,7 +371,7 @@ async function initializeRoleBasedFeatures(context: vscode.ExtensionContext): Pr
       return;
     }
     
-    logger.info('🥚 Loaded worker config', { 
+    logger.info('🥚 Loaded legacy worker config', { 
       workerId: workerConfig.workerId,
       tasksFile: workerConfig.paths.tasksFile 
     });
@@ -341,6 +501,12 @@ export function deactivate(): void {
     lifecycleManager.dispose();
     lifecycleManager = undefined;
   }
+
+  // Unregister MCP tools
+  unregisterMcpTools();
+  
+  // Unregister chat participant
+  unregisterChatParticipant();
 
   // Status bar is automatically disposed via context.subscriptions
 

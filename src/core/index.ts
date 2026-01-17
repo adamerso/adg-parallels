@@ -19,3 +19,6 @@ export * from './pipeline-engine';
 
 // v1.0 - ProjectSpec (NEW system)
 export * from './project-spec-loader';
+
+// v1.0 - SQLite Runtime Database
+export * from './runtime-database';
