@@ -2,7 +2,7 @@
   "name": "adg-parallels",
   "displayName": "ADG-Parallels",
   "description": "AI Delegation Grid - Parallel task processing through multiple GitHub Copilot instances in a corporate hierarchy. Many Ejajkas, One Goal! 🥚",
-  "version": "0.5.0",
+  "version": "0.9.0",
   "publisher": "adg-parallels",
   "author": {
     "name": "ADG-Parallels Team"
@@ -155,6 +155,154 @@
         "command": "adg-parallels.startAudit",
         "title": "ADG: Start Audit for Completed Tasks",
         "category": "ADG-Parallels"
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "adg_status",
+        "displayName": "ADG Status",
+        "toolReferenceName": "adg_status",
+        "icon": "$(info)",
+        "modelDescription": "Get current ADG-Parallels project status including active workers, pending tasks, and overall progress."
+      },
+      {
+        "name": "adg_list_tasks",
+        "displayName": "ADG List Tasks",
+        "toolReferenceName": "adg_list_tasks",
+        "icon": "$(list-ordered)",
+        "modelDescription": "List all tasks in the project with their current status."
+      },
+      {
+        "name": "adg_claim_task",
+        "displayName": "ADG Claim Task",
+        "toolReferenceName": "adg_claim_task",
+        "icon": "$(check)",
+        "modelDescription": "Atomically claim the next available task for a worker."
+      },
+      {
+        "name": "adg_complete_task",
+        "displayName": "ADG Complete Task",
+        "toolReferenceName": "adg_complete_task",
+        "icon": "$(check-all)",
+        "modelDescription": "Mark a task as successfully completed."
+      },
+      {
+        "name": "adg_fail_task",
+        "displayName": "ADG Fail Task",
+        "toolReferenceName": "adg_fail_task",
+        "icon": "$(error)",
+        "modelDescription": "Mark a task as failed with an error message."
+      },
+      {
+        "name": "adg_worker_heartbeat",
+        "displayName": "ADG Heartbeat",
+        "toolReferenceName": "adg_worker_heartbeat",
+        "icon": "$(pulse)",
+        "modelDescription": "Send a heartbeat signal for a worker."
+      },
+      {
+        "name": "adg_get_dashboard",
+        "displayName": "ADG Dashboard",
+        "toolReferenceName": "adg_get_dashboard",
+        "icon": "$(dashboard)",
+        "modelDescription": "Get comprehensive dashboard statistics."
+      },
+      {
+        "name": "adg_list_workers",
+        "displayName": "ADG List Workers",
+        "toolReferenceName": "adg_list_workers",
+        "icon": "$(organization)",
+        "modelDescription": "List all workers in the project hierarchy."
+      },
+      {
+        "name": "adg_get_events",
+        "displayName": "ADG Events",
+        "toolReferenceName": "adg_get_events",
+        "icon": "$(history)",
+        "modelDescription": "Get recent events from the audit log."
+      },
+      {
+        "name": "adg_register_worker",
+        "displayName": "ADG Register Worker",
+        "toolReferenceName": "adg_register_worker",
+        "icon": "$(add)",
+        "modelDescription": "Register a new worker in the project."
+      },
+      {
+        "name": "adg_update_worker_status",
+        "displayName": "ADG Update Worker",
+        "toolReferenceName": "adg_update_worker_status",
+        "icon": "$(edit)",
+        "modelDescription": "Update the status of a worker."
+      },
+      {
+        "name": "adg_create_tasks",
+        "displayName": "ADG Create Tasks",
+        "toolReferenceName": "adg_create_tasks",
+        "icon": "$(new-file)",
+        "modelDescription": "Create new tasks in bulk."
+      },
+      {
+        "name": "adg_init_project",
+        "displayName": "ADG Init Project",
+        "toolReferenceName": "adg_init_project",
+        "icon": "$(folder-opened)",
+        "modelDescription": "Initialize the SQLite runtime database for a new project."
+      },
+      {
+        "name": "adg_install_vsix",
+        "displayName": "ADG Install VSIX",
+        "toolReferenceName": "adg_install_vsix",
+        "icon": "$(package)",
+        "modelDescription": "Install or update the ADG-Parallels extension from a VSIX file."
+      },
+      {
+        "name": "adg_reload_window",
+        "displayName": "ADG Reload Window",
+        "toolReferenceName": "adg_reload_window",
+        "icon": "$(refresh)",
+        "modelDescription": "Reload the VS Code window to apply extension updates."
+      },
+      {
+        "name": "adg_build_extension",
+        "displayName": "ADG Build Extension",
+        "toolReferenceName": "adg_build_extension",
+        "icon": "$(tools)",
+        "modelDescription": "Build the ADG-Parallels extension. Compiles TypeScript and optionally packages VSIX."
+      },
+      {
+        "name": "adg_spawn_worker_window",
+        "displayName": "ADG Spawn Worker",
+        "toolReferenceName": "adg_spawn_worker_window",
+        "icon": "$(window)",
+        "modelDescription": "Spawn a new VS Code window for a worker."
+      }
+    ],
+    "chatParticipants": [
+      {
+        "id": "adg-parallels.adg",
+        "name": "adg",
+        "fullName": "ADG-Parallels Assistant",
+        "description": "Chat about your ADG-Parallels project - check status, list tasks, monitor workers, and more!",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "status",
+            "description": "Get current project status and progress"
+          },
+          {
+            "name": "tasks",
+            "description": "List tasks (optionally filter by status)"
+          },
+          {
+            "name": "workers",
+            "description": "Show all workers and their status"
+          },
+          {
+            "name": "events",
+            "description": "View recent audit log events"
+          }
+        ]
       }
     ],
     "configuration": {
